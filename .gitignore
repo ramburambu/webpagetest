@@ -6,7 +6,6 @@ lib-debug/
 wptdriver tests/
 /ipch/
 .idea/
-.project
 *.vcxproj.user
 *.vcproj.*.user
 *~
@@ -38,3 +37,7 @@ agent/js/runtmp_*
 /www/installers/browsers/nightly.dat
 /www/cli/archive-ia.php
 /www/cli/ec2-keys.inc.php
+.gradle
+*/webdriver-support/java/build/
+*.iml
+logs/
