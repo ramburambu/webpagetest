@@ -147,14 +147,19 @@ function GetJob() {
 
                       // flag the test with the start time
                       $ini = file_get_contents("$testPath/testinfo.ini");
+                      $newFields = "";
                       if (stripos($ini, 'startTime=') === false) {
                           $time = time();
-                          $start = "[test]\r\nstartTime=" . gmdate("m/d/y G:i:s", $time);
-                          $out = str_replace('[test]', $start, $ini);
-                          $out = $out . "\r\nmultistep=" . $multistep;
-                          file_put_contents("$testPath/testinfo.ini", $out);
+                          $newFields = "[test]\r\nstartTime=" . gmdate("m/d/y G:i:s", $time);
                       }
-                      
+                      // flag the test with multistep support
+                      if (stripos($ini, 'multistep=') === false && $multistep) {
+                          $newFields .= "\r\nmultistep=1";
+                      }
+                      if ($newFields) {
+                        $out = str_replace('[test]', $newFields, $ini);
+                        file_put_contents("$testPath/testinfo.ini", $out);
+                      }
                       $lock = LockTest($testId);
                       if ($lock) {
                         $testInfoJson = GetTestInfo($testId);
