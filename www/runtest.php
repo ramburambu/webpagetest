@@ -101,6 +101,8 @@
             $test['web10'] = $req_web10;
             $test['ignoreSSL'] = $req_ignoreSSL;
             $test['script'] = trim($req_script);
+            $test['webdriver'] = trim($req_webdriver);
+            $test['webdriverExtraArgs'] = trim($req_webdriverExtraArgs);
             $test['block'] = $req_block;
             $test['notify'] = trim($req_notify);
             $test['video'] = $req_video;
@@ -1186,8 +1188,9 @@ function ValidateParameters(&$test, $locations, &$error, $destination_url = null
 function ValidateScript(&$script, &$error)
 {
     global $test;
+    global $req_webdriver;
     $url = null;
-    if (stripos($script, 'webdriver.Builder(') === false) {
+    if (stripos($script, 'webdriver.Builder(') === false && !$req_webdriver) {
         global $test;
         FixScript($test, $script);
 
@@ -1227,9 +1230,19 @@ function ValidateScript(&$script, &$error)
 
         if( strlen($error) )
             unset($url);
-    }
-
+    } 
     return $url;
+}
+
+function ParseWebdriverScript(&$script, &$wdLang) {
+    $lines = explode("\n", $script);
+    $shebang = $lines[0];
+    array_shift($lines);
+    $newScript = "";
+    foreach ($lines as $line) {
+        $newScript = $newScript . $line . "\r\n";
+    }
+    $script = $newScript;
 }
 
 /**
@@ -1794,11 +1807,14 @@ function CreateTest(&$test, $url, $batch = 0, $batch_locations = 0)
         $testInfo .= "batch=$batch\r\n";
         $testInfo .= "batch_locations=$batch_locations\r\n";
         $testInfo .= "sensitive={$test['sensitive']}\r\n";
+        $testInfo .= "webdriver={$test['webdriver']}\r\n";
+        $testInfo .= "webdriverExtraArgs={$test['webdriverExtraArgs']}\r\n";
         if( strlen($test['login']) )
             $testInfo .= "authenticated=1\r\n";
         $testInfo .= "connections={$test['connections']}\r\n";
-        if( strlen($test['script']) )
+        if( strlen($test['script']) ) {
             $testInfo .= "script=1\r\n";
+        }
         if( strlen($test['notify']) )
             $testInfo .= "notify={$test['notify']}\r\n";
         if( strlen($test['video']) )
@@ -1917,6 +1933,11 @@ function CreateTest(&$test, $url, $batch = 0, $batch_locations = 0)
                 $testFile .= "clearcerts=1\r\n";
             if( $test['orientation'] )
                 $testFile .= "orientation={$test['orientation']}\r\n";
+            if ($test['script'] && $test['webdriver']) {
+                $testFile .= "webdriver={$test['webdriver']}\r\n";
+                if ($test['webdriverExtraArgs'])
+                    $testFile .= "webdriverExtraArgs={$test['webdriverExtraArgs']}\r\n";
+            }
             if (array_key_exists('continuousVideo', $test) && $test['continuousVideo'])
                 $testFile .= "continuousVideo=1\r\n";
             if (array_key_exists('responsive', $test) && $test['responsive'])

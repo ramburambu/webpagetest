@@ -930,7 +930,7 @@ void Results::SaveRequests(OptimizationChecks& checks) {
     SetFilePointer( file, 0, 0, FILE_END );
 
     HANDLE headers_file = CreateFile(_file_base + REQUEST_HEADERS_DATA_FILE,
-                            GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, 0);
+                            GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, 0, 0);
 
     HANDLE custom_rules_file = INVALID_HANDLE_VALUE;
     if (!_test._custom_rules.IsEmpty()) {
@@ -1228,8 +1228,9 @@ void Results::SaveRequest(HANDLE file, HANDLE headers, Request * request,
 
   // write out the raw headers
   if (headers != INVALID_HANDLE_VALUE) {
-    buff.Format("Request details:\r\nRequest %d:\r\nRequest Headers:\r\n", 
-                  index);
+    SetFilePointer(headers, 0, 0, FILE_END);
+    buff.Format("Request details:\r\nEvent name:%s\r\nRequest %d:\r\nRequest Headers:\r\n", 
+                  current_step_name_.GetBuffer(), index);
     buff += request->_request_data.GetHeaders();
     buff.Trim("\r\n");
     buff += "\r\nResponse Headers:\r\n";

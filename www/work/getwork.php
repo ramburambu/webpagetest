@@ -20,6 +20,7 @@ $key = array_key_exists('key', $_GET) ? $_GET['key'] : '';
 $recover = array_key_exists('recover', $_GET) ? $_GET['recover'] : '';
 $pc = array_key_exists('pc', $_GET) ? $_GET['pc'] : '';
 $ec2 = array_key_exists('ec2', $_GET) ? $_GET['ec2'] : '';
+$multistep = array_key_exists('multistep', $_GET) ? $_GET['multistep'] : 0;
 $tester = null;
 if (strlen($ec2))
   $tester = $ec2;
@@ -87,6 +88,7 @@ function GetJob() {
     global $recover;
     global $is_json;
     global $dnsServers;
+    global $multistep;
 
     $workDir = "./work/jobs/$location";
     $locKey = GetLocationKey($location);
@@ -145,13 +147,19 @@ function GetJob() {
 
                       // flag the test with the start time
                       $ini = file_get_contents("$testPath/testinfo.ini");
+                      $newFields = "";
                       if (stripos($ini, 'startTime=') === false) {
                           $time = time();
-                          $start = "[test]\r\nstartTime=" . gmdate("m/d/y G:i:s", $time);
-                          $out = str_replace('[test]', $start, $ini);
-                          file_put_contents("$testPath/testinfo.ini", $out);
+                          $newFields = "[test]\r\nstartTime=" . gmdate("m/d/y G:i:s", $time);
                       }
-                      
+                      // flag the test with multistep support
+                      if (stripos($ini, 'multistep=') === false && $multistep) {
+                          $newFields .= "\r\nmultistep=1";
+                      }
+                      if ($newFields) {
+                        $out = str_replace('[test]', $newFields, $ini);
+                        file_put_contents("$testPath/testinfo.ini", $out);
+                      }
                       $lock = LockTest($testId);
                       if ($lock) {
                         $testInfoJson = GetTestInfo($testId);
@@ -171,6 +179,7 @@ function GetJob() {
                               $testInfoJson['test_runs'][$run] = array('done' => false);
                           }
                           $testInfoJson['id'] = $testId;
+                          $testInfoJson['multistep'] = $multistep;
                           ProcessTestShard($testInfoJson, $testInfo, $delete);
                           SaveTestInfo($testId, $testInfoJson);
                         }

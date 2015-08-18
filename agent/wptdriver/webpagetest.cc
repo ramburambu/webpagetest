@@ -107,7 +107,7 @@ bool WebPagetest::GetTest(WptTestDriver& test) {
 
   // build the url for the request
   CString buff;
-  CString url = _settings._server + _T("work/getwork.php?shards=1&reboot=1");
+  CString url = _settings._server + _T("work/getwork.php?shards=1&reboot=1&multistep=1");
   url += CString(_T("&location=")) + _settings._location;
   if (_settings._key.GetLength())
     url += CString(_T("&key=")) + _settings._key;

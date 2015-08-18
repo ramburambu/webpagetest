@@ -6,7 +6,6 @@ lib-debug/
 wptdriver tests/
 /ipch/
 .idea/
-.project
 *.vcxproj.user
 *.vcproj.*.user
 *~
@@ -28,6 +27,7 @@ webpagetest.vsmdi
 *.idx
 *.ncb
 *.$wrk
+*.swp
 agent/js/*.log
 agent/js/node_modules/.bin/jshint
 agent/js/node_modules/jshint/
@@ -38,3 +38,7 @@ agent/js/runtmp_*
 /www/installers/browsers/nightly.dat
 /www/cli/archive-ia.php
 /www/cli/ec2-keys.inc.php
+.gradle
+*/webdriver-support/java/build/
+*.iml
+logs/

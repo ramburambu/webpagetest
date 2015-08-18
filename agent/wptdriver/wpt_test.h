@@ -203,7 +203,10 @@ public:
   CStringA _run_error;
   CString _custom_metrics;
   DWORD   _script_timeout_multiplier;
-  
+  bool    _webdriver_mode;
+  CString _webdriver_lang;
+  CString _webdriver_args;
+
   // current state
   int     _run;
   int     _specific_run;
