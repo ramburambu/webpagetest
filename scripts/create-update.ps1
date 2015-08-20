@@ -14,8 +14,7 @@ setup the path for each dependencies.
 #>
 
 param(
-    [string]$configuration = "Release",
-    [string]$webdriverArtifacts
+    [string]$configuration = "Release"
 )
 
 $wptroot = $PSScriptRoot + "\.."
@@ -66,18 +65,8 @@ Add-Type -Assembly System.IO.Compression.FileSystem
 
 Remove-Item -recurse ($outdir + "\extension")
 
-$tohash= $binaries + "extension.zip"
-
-if ($webdriverArtifacts) {
-  Write-Host "-> Zipping webdriver artifacts"
-  Copy-Item -recurse $webdriverArtifacts\ $wptroot\$configuration\dist\webdriver
-  $webdriverDir = Get-ChildItem $wptroot\$configuration\dist webdriver
-  [System.IO.Compression.ZipFile]::CreateFromDirectory($webdriverDir.fullname,
-    ($outdir + "\webdriver.zip"))
-  Remove-Item -recurse $webdriverDir.fullname
-  $tohash = $tohash + "webdriver.zip"
-}
 "-> Writing wptupdate.ini with MD5 hashes"
+$tohash= $binaries + "extension.zip"
 
 $wptexec = ($releasedir.fullname + "\wptdriver.exe")
 $ver = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($wptexec).FileVersion.split(".")[3]
