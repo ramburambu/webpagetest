@@ -55,14 +55,16 @@ function loadPageRunData($testPath, $run, $cached, $options = null, $multistep=f
     $ret = null;
     $cachedText = $cached ? '_Cached' : '';
     $ret = loadPageData("$testPath/{$run}{$cachedText}_IEWPG.txt", $options, $multistep);
-    if (!isset($ret) || !is_array($ret) || !count($ret))
+    if (!$multistep && (!isset($ret) || !is_array($ret) || !count($ret))) {
+      // Not yet supported for multistep. TODO(kk): Mention in the PR so Pat knows about it.
       GetDevToolsRequests($testPath, $run, $cached, $requests, $ret);
+    }
     // see if we have video files to calculate a visually complete time from
     $basic_results = false;
     if (array_key_exists('basic', $_REQUEST) && $_REQUEST['basic'])
       $basic_results = true;
     if (!$multistep && gz_is_file("$testPath/{$run}{$cachedText}_page_data.json")) {
-      // Not supported with multi-step.
+      // Not yet supported for multistep. TODO(kk): Mention in the PR so Pat knows about it.
       $pd = json_decode(gz_file_get_contents("$testPath/{$run}{$cachedText}_page_data.json"), true);
       if ($pd && is_array($pd) && count($pd)) {
         foreach($pd as $key => $value) {
@@ -70,62 +72,58 @@ function loadPageRunData($testPath, $run, $cached, $options = null, $multistep=f
         }
       }
     }
-
-    $pages = array(&$ret);
-    if ($multistep) {
-      $pages = array();
-      foreach ($ret as &$perStepPageData) {
-        $pages[] = &$perStepPageData;
-      }
-    }
-    foreach ($pages as &$eachPage) {
-      if (isset($eachPage) && !$basic_results) {
-        $startOffset = array_key_exists('testStartOffset', $eachPage) ? intval(round($eachPage['testStartOffset'])) : 0;
+    $steps = $multistep ? $ret : array($ret);
+    foreach ($steps as &$step) {
+      if (isset($step) && !$basic_results) {
+        $startOffset = array_key_exists('testStartOffset', $step) ? intval(round($step['testStartOffset'])) : 0;
         if (!$multistep) {
-          // TODO (kk): should fix this.
-          loadUserTimingData($eachPage, $testPath, $run, $cached);
+          // TODO (kk): Not yet supported with multistep
+          loadUserTimingData($step, $testPath, $run, $cached);
 
+          // TODO (kk): Not yet supported with multistep
           // see if we have custom metrics to load
           if (gz_is_file("$testPath/{$run}{$cachedText}_metrics.json")) {
             $custom_metrics = json_decode(gz_file_get_contents("$testPath/{$run}{$cachedText}_metrics.json"), true);
             if ($custom_metrics && is_array($custom_metrics) && count($custom_metrics)) {
-              $eachPage["custom"] = array();
+              $step["custom"] = array();
               foreach ($custom_metrics as $metric => $value) {
                 if (preg_match('/^[0-9]+$/', $value))
-                  $eachPage[$metric] = intval($value);
+                  $step[$metric] = intval($value);
                 elseif (preg_match('/^[0-9]*\.[0-9]+$/', $value))
-                  $eachPage[$metric] = floatval($value);
+                  $step[$metric] = floatval($value);
                 else
-                  $eachPage[$metric] = $value;
-                $eachPage["custom"][] = $metric;
+                  $step[$metric] = $value;
+                $step["custom"][] = $metric;
               }
             }
           }
 
+          // TODO (kk): Not yet supported with multistep
           // see if we have CSI metrics to load
           if (is_dir('./google') && is_file('./google/google_lib.inc')) {
             require_once('google/google_lib.inc');
             $csi = ParseCsiInfo(0, $testPath, $run, $cached, true, false);
             if (isset($csi) && is_array($csi) && count($csi)) {
-              $eachPage['CSI'] = array();
+              $step['CSI'] = array();
               foreach ($csi as $metric => $value) {
                 if (preg_match('/^[0-9]+$/', $value))
                   $value = intval($value);
                 elseif (preg_match('/^[0-9\.]+$/', $value))
                   $value = floatval($value);
-                $eachPage["CSI.$metric"] = $value;
-                $eachPage['CSI'][] = $metric;
+                $step["CSI.$metric"] = $value;
+                $step['CSI'][] = $metric;
               }
             }
           }
         }
 
-        if (array_key_exists('loadTime', $eachPage) &&
-            !$eachPage['loadTime'] &&
-            array_key_exists('fullyLoaded', $eachPage) &&
-            $eachPage['fullyLoaded'] > 0
+        if (array_key_exists('loadTime', $step) &&
+            !$step['loadTime'] &&
+            array_key_exists('fullyLoaded', $step) &&
+            $step['fullyLoaded'] > 0
         )
-          $eachPage['loadTime'] = $eachPage['fullyLoaded'];
+          $step['loadTime'] = $step['fullyLoaded'];
+        // TODO(kk):
         $video_dir = "$testPath/video_$run";
         if ($cached)
           $video_dir .= '_cached';
@@ -133,23 +131,22 @@ function loadPageRunData($testPath, $run, $cached, $options = null, $multistep=f
           $frames = null;
           loadVideo($video_dir, $frames);
           if (isset($frames) && is_array($frames) && count($frames)) {
-            if (!array_key_exists('lastVisualChange', $eachPage) || !$eachPage['lastVisualChange']) {
+            if (!array_key_exists('lastVisualChange', $step) || !$step['lastVisualChange'])
               end($frames);
-              $last = max(key($frames) - $startOffset, 0);
-              reset($frames);
-              if ($last) {
-                $eachPage['lastVisualChange'] = $last;
-                if (!array_key_exists('visualComplete', $eachPage))
-                  $eachPage['visualComplete'] = $eachPage['lastVisualChange'];
-              }
+            $last = max(key($frames) - $startOffset, 0);
+            reset($frames);
+            if ($last) {
+              $step['lastVisualChange'] = $last;
+              if (!array_key_exists('visualComplete', $step))
+                $step['visualComplete'] = $step['lastVisualChange'];
             }
-            if ((!array_key_exists('render', $eachPage) || !$eachPage['render']) && count($frames) > 1) {
-              next($frames);
-              $first = max(key($frames) - $startOffset, 0);
-              reset($frames);
-              if ($first)
-                $eachPage['render'] = $first;
-            }
+          }
+          if ((!array_key_exists('render', $step) || !$step['render']) && count($frames) > 1) {
+            next($frames);
+            $first = max(key($frames) - $startOffset, 0);
+            reset($frames);
+            if ($first)
+              $step['render'] = $first;
           }
         }
         // TODO (kk): should fix this.
@@ -157,16 +154,16 @@ function loadPageRunData($testPath, $run, $cached, $options = null, $multistep=f
         $progress = GetVisualProgress($testPath, $run, $cached, null, null, $startOffset);
         if (isset($progress) && is_array($progress)) {
           if (array_key_exists('SpeedIndex', $progress))
-            $eachPage['SpeedIndex'] = $progress['SpeedIndex'];
+            $step['SpeedIndex'] = $progress['SpeedIndex'];
           if (array_key_exists('visualComplete', $progress))
-            $eachPage['visualComplete'] = $progress['visualComplete'];
-          if (array_key_exists('startRender', $progress) && (!array_key_exists('render', $eachPage) || !$eachPage['render']))
-            $eachPage['render'] = $progress['startRender'];
-          if ((!array_key_exists('lastVisualChange', $eachPage) ||
-                  !$eachPage['lastVisualChange']) &&
-              array_key_exists('visualComplete', $eachPage)
+            $step['visualComplete'] = $progress['visualComplete'];
+          if (array_key_exists('startRender', $progress) && (!array_key_exists('render', $step) || !$step['render']))
+            $step['render'] = $progress['startRender'];
+          if ((!array_key_exists('lastVisualChange', $step) ||
+                  !$step['lastVisualChange']) &&
+              array_key_exists('visualComplete', $step)
           )
-            $eachPage['lastVisualChange'] = $eachPage['visualComplete'];
+            $step['lastVisualChange'] = $step['visualComplete'];
         }
         // see if we need a custom Speed Index as well
         $end = null;
@@ -175,54 +172,54 @@ function loadPageRunData($testPath, $run, $cached, $options = null, $multistep=f
           $progress = GetVisualProgress($testPath, $run, $cached, null, $end, $startOffset);
           if (isset($progress) && is_array($progress)) {
             if (array_key_exists('SpeedIndex', $progress))
-              $eachPage['SpeedIndexCustom'] = $progress['SpeedIndex'];
-            $eachPage['visualCompleteCustom'] = $progress['visualComplete'];
+              $step['SpeedIndexCustom'] = $progress['SpeedIndex'];
+            $step['visualCompleteCustom'] = $progress['visualComplete'];
           }
         }
 
-        if (isset($eachPage) && is_array($eachPage) && isset($eachPage['fullyLoaded']) && $eachPage['fullyLoaded']) {
-          $processing = GetDevToolsCPUTime($testPath, $run, $cached, $eachPage['fullyLoaded']);
+        if (isset($step) && is_array($step) && isset($step['fullyLoaded']) && $step['fullyLoaded']) {
+          $processing = GetDevToolsCPUTime($testPath, $run, $cached, $step['fullyLoaded']);
           if (isset($processing) && is_array($processing) && count($processing)) {
-            $eachPage['cpuTimes'] = $processing;
-            if (isset($eachPage['docTime']) && $eachPage['docTime']) {
-              $processing = GetDevToolsCPUTime($testPath, $run, $cached, $eachPage['docTime']);
+            $step['cpuTimes'] = $processing;
+            if (isset($step['docTime']) && $step['docTime']) {
+              $processing = GetDevToolsCPUTime($testPath, $run, $cached, $step['docTime']);
               if (isset($processing) && is_array($processing) && count($processing)) {
-                $eachPage['cpuTimesDoc'] = $processing;
+                $step['cpuTimesDoc'] = $processing;
               }
             }
           }
         }
       }
 
-      if (isset($eachPage)) {
-        $eachPage['run'] = $run;
-        $eachPage['cached'] = $cached;
+      if (isset($step)) {
+        $step['run'] = $run;
+        $step['cached'] = $cached;
 
         // calculate the effective bps
-        if (array_key_exists('fullyLoaded', $eachPage) &&
-            array_key_exists('TTFB', $eachPage) &&
-            array_key_exists('bytesIn', $eachPage) &&
-            $eachPage['fullyLoaded'] > 0 &&
-            $eachPage['TTFB'] > 0 &&
-            $eachPage['bytesIn'] > 0 &&
-            $eachPage['fullyLoaded'] > $eachPage['TTFB']
+        if (array_key_exists('fullyLoaded', $step) &&
+            array_key_exists('TTFB', $step) &&
+            array_key_exists('bytesIn', $step) &&
+            $step['fullyLoaded'] > 0 &&
+            $step['TTFB'] > 0 &&
+            $step['bytesIn'] > 0 &&
+            $step['fullyLoaded'] > $step['TTFB']
         )
-          $eachPage['effectiveBps'] = intval($eachPage['bytesIn'] / (($eachPage['fullyLoaded'] - $eachPage['TTFB']) / 1000.0));
-        if (array_key_exists('docTime', $eachPage) &&
-            array_key_exists('TTFB', $eachPage) &&
-            array_key_exists('bytesInDoc', $eachPage) &&
-            $eachPage['docTime'] > 0 &&
-            $eachPage['TTFB'] > 0 &&
-            $eachPage['bytesInDoc'] > 0 &&
-            $eachPage['docTime'] > $eachPage['TTFB']
+          $step['effectiveBps'] = intval($step['bytesIn'] / (($step['fullyLoaded'] - $step['TTFB']) / 1000.0));
+        if (array_key_exists('docTime', $step) &&
+            array_key_exists('TTFB', $step) &&
+            array_key_exists('bytesInDoc', $step) &&
+            $step['docTime'] > 0 &&
+            $step['TTFB'] > 0 &&
+            $step['bytesInDoc'] > 0 &&
+            $step['docTime'] > $step['TTFB']
         )
-          $eachPage['effectiveBpsDoc'] = intval($eachPage['bytesInDoc'] / (($eachPage['docTime'] - $eachPage['TTFB']) / 1000.0));
+          $step['effectiveBpsDoc'] = intval($step['bytesInDoc'] / (($step['docTime'] - $step['TTFB']) / 1000.0));
         // clean up any insane values (from negative numbers as unsigned most likely)
-        if (array_key_exists('firstPaint', $eachPage) &&
-            array_key_exists('fullyLoaded', $eachPage) &&
-            $eachPage['firstPaint'] > $eachPage['fullyLoaded']
+        if (array_key_exists('firstPaint', $step) &&
+            array_key_exists('fullyLoaded', $step) &&
+            $step['firstPaint'] > $step['fullyLoaded']
         )
-          $eachPage['firstPaint'] = 0;
+          $step['firstPaint'] = 0;
         $times = array('loadTime',
             'TTFB',
             'render',
@@ -239,15 +236,17 @@ function loadPageRunData($testPath, $run, $cached, $options = null, $multistep=f
             'server_rtt',
             'firstPaint');
         foreach ($times as $key) {
-          if (!array_key_exists($key, $eachPage) ||
-              $eachPage[$key] > 3600000 ||
-              $eachPage[$key] < 0
+          if (!array_key_exists($key, $step) ||
+              $step[$key] > 3600000 ||
+              $step[$key] < 0
           )
-            $eachPage[$key] = 0;
+            $step[$key] = 0;
         }
       }
     }
-    return $ret;
+    unset($step);
+
+    return $multistep ? $steps : $ret;
 }
 
 /**
@@ -258,7 +257,7 @@ function loadPageRunData($testPath, $run, $cached, $options = null, $multistep=f
 // TODO(kk): should merge $multistep into $options.
 function loadPageData($file, $options = null, $multistep=false)
 {
-    $ret = array();
+    $steps = array();
     $lines = gz_file($file);
     if( $lines)
     {
@@ -269,7 +268,7 @@ function loadPageData($file, $options = null, $multistep=false)
             $fields = explode("\t", $parseLine);
             if( count($fields) > 34 && trim($fields[0]) != 'Date' )
             {
-                $tmp = array(   'URL' => @htmlspecialchars(trim($fields[3])),
+                $step = array(   'URL' => @htmlspecialchars(trim($fields[3])),
                                 // 'loadTime' => (int)$fields[4],
                                 'loadTime' => @(int)$fields[32],
                                 'TTFB' => @(int)$fields[5],
@@ -323,34 +322,34 @@ function loadPageData($file, $options = null, $multistep=false)
                                 'adult_site' => @(int)trim($fields[87])
                             );
 
-                $tmp['fixed_viewport'] = (array_key_exists(88, $fields) && strlen(trim($fields[88]))) ? (int)trim($fields[88]) : -1;
-                $tmp['score_progressive_jpeg'] = (array_key_exists(89, $fields) && strlen(trim($fields[89]))) ? (int)trim($fields[89]) : -1;
-                $tmp['firstPaint'] = (array_key_exists(90, $fields) && strlen(trim($fields[90]))) ? (int)trim($fields[90]) : 0;
-                //$ret['peakMem'] = (array_key_exists(91, $fields) && strlen(trim($fields[91]))) ? (int)trim($fields[91]) : 0;
-                //$ret['processCount'] = (array_key_exists(92, $fields) && strlen(trim($fields[92]))) ? (int)trim($fields[92]) : 0;
-                $tmp['docCPUms'] = (array_key_exists(93, $fields) && strlen(trim($fields[93]))) ? floatval(trim($fields[93])) : 0.0;
-                $tmp['fullyLoadedCPUms'] = (array_key_exists(94, $fields) && strlen(trim($fields[94]))) ? floatval(trim($fields[94])) : 0.0;
-                $tmp['docCPUpct'] = (array_key_exists(95, $fields) && strlen(trim($fields[95]))) ? floatval(trim($fields[95])) : 0;
-                $tmp['fullyLoadedCPUpct'] = (array_key_exists(96, $fields) && strlen(trim($fields[96]))) ? floatval(trim($fields[96])) : 0;
-                $tmp['isResponsive'] = (array_key_exists(97, $fields) && strlen(trim($fields[97]))) ? intval(trim($fields[97])) : -1;
-                
-                $tmp['date'] = strtotime(trim($fields[0]) . ' ' . trim($fields[1]));
-                if (!strlen($tmp['pageSpeedVersion']))
-                    $tmp['pageSpeedVersion'] = '1.9';
-                if ($multistep && strlen(trim($fields[2]))) {
-                  $tmp['stepName'] = trim($fields[2]);
-                  foreach ($tmp as $key => $value) {
-                    $ret[$tmp['stepName']][$key] = $value;
-                  }
-                } else {
-                  $ret = $tmp;
+                $step['fixed_viewport'] = (array_key_exists(88, $fields) && strlen(trim($fields[88]))) ? (int)trim($fields[88]) : -1;
+                $step['score_progressive_jpeg'] = (array_key_exists(89, $fields) && strlen(trim($fields[89]))) ? (int)trim($fields[89]) : -1;
+                $step['firstPaint'] = (array_key_exists(90, $fields) && strlen(trim($fields[90]))) ? (int)trim($fields[90]) : 0;
+                //$step['peakMem'] = (array_key_exists(91, $fields) && strlen(trim($fields[91]))) ? (int)trim($fields[91]) : 0;
+                //$step['processCount'] = (array_key_exists(92, $fields) && strlen(trim($fields[92]))) ? (int)trim($fields[92]) : 0;
+                $step['docCPUms'] = (array_key_exists(93, $fields) && strlen(trim($fields[93]))) ? floatval(trim($fields[93])) : 0.0;
+                $step['fullyLoadedCPUms'] = (array_key_exists(94, $fields) && strlen(trim($fields[94]))) ? floatval(trim($fields[94])) : 0.0;
+                $step['docCPUpct'] = (array_key_exists(95, $fields) && strlen(trim($fields[95]))) ? floatval(trim($fields[95])) : 0;
+                $step['fullyLoadedCPUpct'] = (array_key_exists(96, $fields) && strlen(trim($fields[96]))) ? floatval(trim($fields[96])) : 0;
+                $step['isResponsive'] = (array_key_exists(97, $fields) && strlen(trim($fields[97]))) ? intval(trim($fields[97])) : -1;
+                $step['date'] = strtotime(trim($fields[0]) . ' ' . trim($fields[1]));
+                $stepName = trim($fields[2]);
+                if (strlen($stepName)) {
+                  $step['stepName'] = $stepName;
+                }
+                if (!strlen($step['pageSpeedVersion']))
+                    $step['pageSpeedVersion'] = '1.9';
+
+                $steps[] = $step;
+                if (!$multistep) {
+                  // if not multistep, revert to old behavior. only the first page data is preserved.
                   break;
                 }
             }
         }
     }
     
-    return count($ret) == 0 ? null : $ret;
+    return count($steps) == 0 ? null : $steps;
 }
 
 /**

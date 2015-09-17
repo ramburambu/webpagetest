@@ -1229,7 +1229,7 @@ void Results::SaveRequest(HANDLE file, HANDLE headers, Request * request,
   // write out the raw headers
   if (headers != INVALID_HANDLE_VALUE) {
     SetFilePointer(headers, 0, 0, FILE_END);
-    buff.Format("Request details:\r\nEvent name:%s\r\nRequest %d:\r\nRequest Headers:\r\n", 
+    buff.Format("Request details:\r\nStep name:%s\r\nRequest %d:\r\nRequest Headers:\r\n", 
                   current_step_name_.GetBuffer(), index);
     buff += request->_request_data.GetHeaders();
     buff.Trim("\r\n");
