@@ -97,21 +97,25 @@ void Wpt::Install(CComPtr<IWebBrowser2> web_browser) {
   AtlTrace(_T("[wptbho] - Install"));
   HANDLE active_mutex = OpenMutex(SYNCHRONIZE, FALSE, GLOBAL_TESTING_MUTEX);
   if (!_task_timer && active_mutex) {
-    global_wpt = this;
-    WNDCLASS wndClass;
-    memset(&wndClass, 0, sizeof(wndClass));
-    wndClass.lpszClassName = _T("wptbho");
-    wndClass.lpfnWndProc = WptBHOWindowProc;
-    wndClass.hInstance = dll_hinstance;
-    if (RegisterClass(&wndClass)) {
-      _message_window = CreateWindow(wndClass.lpszClassName,
-          wndClass.lpszClassName, WS_POPUP, 0, 0, 0, 0, NULL, NULL,
-          dll_hinstance, NULL);
-    }
-    if (InstallHook()) {
-      _web_browser = web_browser;
-      CComBSTR bstr_url = L"http://127.0.0.1:8888/blank.html";
-      _web_browser->Navigate(bstr_url, 0, 0, 0, 0);
+    if (!global_wpt) {
+      global_wpt = this;
+      WNDCLASS wndClass;
+      memset(&wndClass, 0, sizeof(wndClass));
+      wndClass.lpszClassName = _T("wptbho");
+      wndClass.lpfnWndProc = WptBHOWindowProc;
+      wndClass.hInstance = dll_hinstance;
+      if (RegisterClass(&wndClass)) {
+        _message_window = CreateWindow(wndClass.lpszClassName,
+            wndClass.lpszClassName, WS_POPUP, 0, 0, 0, 0, NULL, NULL,
+            dll_hinstance, NULL);
+      }
+      if (InstallHook()) {
+        _web_browser = web_browser;
+        CComBSTR bstr_url = L"http://127.0.0.1:8888/blank.html";
+        _web_browser->Navigate(bstr_url, 0, 0, 0, 0);
+      }
+    } else {
+      AtlTrace(_T("[wptbho] - Already installed"));
     }
   } else {
     AtlTrace(_T("[wptbho] - Install, failed to open mutex"));
@@ -737,7 +741,7 @@ CComQIPtr<IWebBrowser2> HtmlWindowToHtmlWebBrowser(
 }
 
 /*-----------------------------------------------------------------------------
-	Convert a window to a document, accounting for cross-domain security
+  Convert a window to a document, accounting for cross-domain security
   issues.
 -----------------------------------------------------------------------------*/
 CComQIPtr<IHTMLDocument2> HtmlWindowToHtmlDocument(
@@ -903,7 +907,7 @@ CComPtr<IHTMLElement> Wpt::FindDomElementInDocument(CString tag,
 }
 
 /*-----------------------------------------------------------------------------
-	Expire any items in the cache that will expire within X seconds.
+  Expire any items in the cache that will expire within X seconds.
 -----------------------------------------------------------------------------*/
 void  Wpt::ExpireCache(CString target) {
   DWORD seconds = 0;
@@ -1014,7 +1018,7 @@ void  Wpt::ExpireCache(CString target) {
 }
 
 /*-----------------------------------------------------------------------------
-	Expire a single item in the cache if it expires within X seconds.
+  Expire a single item in the cache if it expires within X seconds.
 -----------------------------------------------------------------------------*/
 void Wpt::ExpireCacheEntry(INTERNET_CACHE_ENTRY_INFO * info, DWORD seconds) {
   if (info->lpszSourceUrlName) {
@@ -1048,10 +1052,10 @@ void Wpt::ExpireCacheEntry(INTERNET_CACHE_ENTRY_INFO * info, DWORD seconds) {
 DWORD Wpt::CountDOMElements(CComQIPtr<IHTMLDocument2> &document) {
   DWORD count = 0;
   if (document) {
-		IHTMLElementCollection *coll;
-		if (SUCCEEDED(document->get_all(&coll)) && coll) {
-			long nodes = 0;
-			if( SUCCEEDED(coll->get_length(&nodes)) )
+    IHTMLElementCollection *coll;
+    if (SUCCEEDED(document->get_all(&coll)) && coll) {
+      long nodes = 0;
+      if( SUCCEEDED(coll->get_length(&nodes)) )
         count += nodes;
       coll->Release();
     }
@@ -1132,7 +1136,7 @@ void Wpt::CollectStats(CString custom_metrics) {
               (BYTE*)buff, &decoded_len) && decoded_len) {
             buff[decoded_len] = 0;
             CStringA code = buff;
-            CString result = GetCustomMetric((LPCTSTR)CA2T(code));
+            CString result = GetCustomMetric((LPCTSTR)CA2T(code, CP_UTF8));
             if (count)
               out += _T(",");
             out += _T("\"");

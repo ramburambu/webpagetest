@@ -135,6 +135,9 @@ public:
   LARGE_INTEGER _title_time;
   SYSTEMTIME    _start_time;
 
+  //Timeout measurer
+  LARGE_INTEGER _timeout_start_time;
+
   LARGE_INTEGER _first_byte;
   int _doc_requests;
   int _requests;
@@ -165,7 +168,6 @@ public:
   bool received_data_;
 
   HWND  _frame_window;
-  HWND  _document_window;
 
   WptTestHook& _test;
   

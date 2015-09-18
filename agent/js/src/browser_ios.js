@@ -653,12 +653,12 @@ BrowserIos.prototype.scheduleTakeScreenshot = function(fileNameNoExt) {
  * @param {string} filename The local filename to write to.
  * @param {Function=} onExit Optional exit callback, as noted in video_hdmi.
  */
-BrowserIos.prototype.scheduleStartVideoRecording = function(filename, onExit) {
+BrowserIos.prototype.scheduleStartVideoRecording = function(filename) {
   'use strict';
   // The video record command needs to know device type for cropping etc.
   this.scheduleGetDeviceInfo_('ProductType').then(function(stdout) {
     this.video_.scheduleStartVideoRecording(filename, this.deviceSerial_,
-        stdout.trim(), this.videoCard_, onExit);
+        stdout.trim(), this.videoCard_);
   }.bind(this));
 };
 
@@ -689,15 +689,15 @@ BrowserIos.prototype.scheduleStopPacketCapture = function() {
 };
 
 /**
- * Verifies that the device is attached and has WiFi.
- * Throws an exception if any of the requested checks fail.
+ * Throws an error if the browser is not ready to run tests.
  *
+ * @return {webdriver.promise.Promise} resolve() for addErrback.
  * @override
  */
-BrowserIos.prototype.scheduleIsAvailable = function() {
+BrowserIos.prototype.scheduleAssertIsReady = function() {
   'use strict';
-  this.scheduleSsh_('echo show State:/Network/Interface/en0/IPv4|scutil').then(
-      function(stdout) {
+  return this.scheduleSsh_('echo show State:/Network/Interface/en0/IPv4|scutil'
+      ).then(function(stdout) {
     // If WiFi is disabled we'll get "No such key" stdout.
     var hasWifi = false;
     var insideTag = false;
@@ -712,7 +712,7 @@ BrowserIos.prototype.scheduleIsAvailable = function() {
       }
     });
     if (!hasWifi) {
-      throw new Error('Device offline');
+      throw new Error('Wifi is offline');
     }
   }.bind(this));
 };

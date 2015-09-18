@@ -28,7 +28,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "StdAfx.h"
 #include "webpagetest.h"
-#include <Wininet.h>
 #include <Wincrypt.h>
 #include <Shellapi.h>
 #include <IPHlpApi.h>
@@ -48,7 +47,8 @@ WebPagetest::WebPagetest(WptSettings &settings, WptStatus &status):
   ,_buildNo(0)
   ,_revisionNo(0)
   ,_exit(false)
-  ,has_gpu_(false) {
+  ,has_gpu_(false)
+  ,rebooting_(false) {
   SetErrorMode(SEM_FAILCRITICALERRORS);
   // get the version number of the binary (for software updates)
   TCHAR file[MAX_PATH];
@@ -62,10 +62,10 @@ WebPagetest::WebPagetest(WptSettings &settings, WptStatus &status):
         UINT size = 0;
         if( VerQueryValue(pVersion, _T("\\"), (LPVOID*)&info, &size) && info )
         {
-		      _majorVer = HIWORD(info->dwFileVersionMS);
-		      _minorVer = LOWORD(info->dwFileVersionMS);
-		      _buildNo = HIWORD(info->dwFileVersionLS);
-		      _revisionNo = LOWORD(info->dwFileVersionLS);
+          _majorVer = HIWORD(info->dwFileVersionMS);
+          _minorVer = LOWORD(info->dwFileVersionMS);
+          _buildNo = HIWORD(info->dwFileVersionLS);
+          _revisionNo = LOWORD(info->dwFileVersionLS);
         }
       }
 
@@ -97,11 +97,17 @@ WebPagetest::~WebPagetest(void) {
 bool WebPagetest::GetTest(WptTestDriver& test) {
   bool ret = false;
 
+  if (rebooting_) {
+    // We should never get here, but if we do make sure to keep trying to reboot
+    Reboot();
+    return false;
+  }
+
   DeleteDirectory(test._directory, false);
 
   // build the url for the request
   CString buff;
-  CString url = _settings._server + _T("work/getwork.php?shards=1");
+  CString url = _settings._server + _T("work/getwork.php?shards=1&reboot=1");
   url += CString(_T("&location=")) + _settings._location;
   if (_settings._key.GetLength())
     url += CString(_T("&key=")) + _settings._key;
@@ -115,6 +121,8 @@ bool WebPagetest::GetTest(WptTestDriver& test) {
     url += CString(_T("&pc=")) + _computer_name;
   if (_settings._ec2_instance.GetLength())
     url += CString(_T("&ec2=")) + _settings._ec2_instance;
+  if (_settings._azure_instance.GetLength())
+    url += CString(_T("&azure=")) + _settings._azure_instance;
   if (_dns_servers.GetLength())
     url += CString(_T("&dns=")) + _dns_servers;
   ULARGE_INTEGER fd;
@@ -128,7 +136,10 @@ bool WebPagetest::GetTest(WptTestDriver& test) {
   CString test_string, zip_file;
   if (HttpGet(url, test, test_string, zip_file)) {
     if (test_string.GetLength()) {
-      if (test.Load(test_string)) {
+      if (test_string == _T("Reboot")) {
+        rebooting_ = true;
+        Reboot();
+      } else if (test.Load(test_string)) {
         if (!test._client.IsEmpty())
           ret = GetClient(test);
         else
@@ -162,6 +173,8 @@ bool WebPagetest::DeleteIncrementalResults(WptTestDriver& test) {
 bool WebPagetest::UploadIncrementalResults(WptTestDriver& test) {
   bool ret = true;
 
+  AtlTrace(_T("[wptdriver] - UploadIncrementalResults"));
+
   if (!test._discard_test) {
     CString directory = test._directory + CString(_T("\\"));
     CAtlList<CString> image_files;
@@ -193,6 +206,8 @@ bool WebPagetest::TestDone(WptTestDriver& test){
     ret = UploadData(test, true);
     SetCPUUtilization(0);
   }
+
+  AtlTrace(_T("[wptdriver] - Test Done"));
 
   return ret;
 }
@@ -267,6 +282,18 @@ bool WebPagetest::UploadData(WptTestDriver& test, bool done) {
 }
 
 /*-----------------------------------------------------------------------------
+  Set the credentials required to access the server, if configured
+-----------------------------------------------------------------------------*/
+void WebPagetest::SetLoginCredentials(HINTERNET request) {
+  if (!_settings._username.IsEmpty() && !_settings._password.IsEmpty()) {
+    InternetSetOption(request, INTERNET_OPTION_USERNAME,
+      (LPVOID)(PCTSTR)(_settings._username), _settings._username.GetLength() + 1);
+    InternetSetOption(request, INTERNET_OPTION_PASSWORD,
+      (LPVOID)(PCTSTR)(_settings._password), _settings._password.GetLength() + 1);
+  }
+}
+
+/*-----------------------------------------------------------------------------
   Perform a http GET operation and return the body as a string
 -----------------------------------------------------------------------------*/
 bool WebPagetest::HttpGet(CString url, WptTestDriver& test,
@@ -288,43 +315,56 @@ bool WebPagetest::HttpGet(CString url, WptTestDriver& test,
                       &timeout, sizeof(timeout));
     CString host, object;
     unsigned short port;
-    DWORD secure_flag;
-    if (CrackUrl(url, host, port, object, secure_flag)) {
-      HINTERNET http_request = InternetOpenUrl(internet, url, NULL, 0, 
-                                  INTERNET_FLAG_NO_CACHE_WRITE | 
-                                  INTERNET_FLAG_NO_UI | 
-                                  INTERNET_FLAG_PRAGMA_NOCACHE | 
-                                  INTERNET_FLAG_RELOAD |
-                                  secure_flag, NULL);
-      if (http_request) {
-        TCHAR mime_type[1024] = TEXT("\0");
-        DWORD len = _countof(mime_type);
-        if (HttpQueryInfo(http_request,HTTP_QUERY_CONTENT_TYPE, mime_type, 
-                            &len, NULL)) {
-          result = true;
-          bool is_zip = false;
-          char buff[4097];
-          DWORD bytes_read, bytes_written;
-          HANDLE file = INVALID_HANDLE_VALUE;
-          if (!lstrcmpi(mime_type, _T("application/zip"))) {
-            zip_file = test._directory + _T("\\wpt.zip");
-            file = CreateFile(zip_file,GENERIC_WRITE,0,0,CREATE_ALWAYS,0,NULL);
-            is_zip = true;
-          }
-          while (InternetReadFile(http_request, buff, sizeof(buff) - 1, 
-                  &bytes_read) && bytes_read) {
-            if (is_zip) {
-              WriteFile(file, buff, bytes_read, &bytes_written, 0);
-            } else {
-              // NULL-terminate it and add it to our response string
-              buff[bytes_read] = 0;
-              test_string += CA2T(buff);
+    DWORD secure_flags;
+    if (CrackUrl(url, host, port, object, secure_flags)) {
+      HINTERNET connect = InternetConnect(internet, host, port, NULL, NULL,
+        INTERNET_SERVICE_HTTP, 0, 0);
+      if (connect) {
+        HINTERNET request = HttpOpenRequest(connect, _T("GET"), object, NULL, NULL, NULL,
+          INTERNET_FLAG_NO_CACHE_WRITE |
+          INTERNET_FLAG_NO_UI |
+          INTERNET_FLAG_PRAGMA_NOCACHE |
+          INTERNET_FLAG_RELOAD | 
+          INTERNET_FLAG_KEEP_CONNECTION | 
+          secure_flags, 0);
+        if (request) {
+
+          SetLoginCredentials(request);
+
+          if (HttpSendRequest(request, NULL, 0, NULL, 0)) {
+            TCHAR mime_type[1024] = TEXT("\0");
+            DWORD len = _countof(mime_type);
+
+            if (HttpQueryInfo(request, HTTP_QUERY_CONTENT_TYPE, mime_type,
+              &len, NULL)) {
+              result = true;
+              bool is_zip = false;
+              char buff[4097];
+              DWORD bytes_read, bytes_written;
+              HANDLE file = INVALID_HANDLE_VALUE;
+              if (!lstrcmpi(mime_type, _T("application/zip"))) {
+                zip_file = test._directory + _T("\\wpt.zip");
+                file = CreateFile(zip_file, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, NULL);
+                is_zip = true;
+              }
+              while (InternetReadFile(request, buff, sizeof(buff) - 1,
+                &bytes_read) && bytes_read) {
+                if (is_zip) {
+                  WriteFile(file, buff, bytes_read, &bytes_written, 0);
+                }
+                else {
+                  // NULL-terminate it and add it to our response string
+                  buff[bytes_read] = 0;
+                  test_string += CA2T(buff, CP_UTF8);
+                }
+              }
+              if (file != INVALID_HANDLE_VALUE)
+                CloseHandle(file);
             }
           }
-          if (file != INVALID_HANDLE_VALUE)
-            CloseHandle(file);
+          InternetCloseHandle(request);
         }
-        InternetCloseHandle(http_request);
+        InternetCloseHandle(connect);
       }
     }
     InternetCloseHandle(internet);
@@ -358,6 +398,8 @@ bool WebPagetest::UploadFile(CString url, bool done, WptTestDriver& test,
     }
   }
 
+  AtlTrace(_T("[wptdriver] - Uploading '%s' (%d bytes) to '%s'"), (LPCTSTR)file, file_size, (LPCTSTR)url);
+
   BuildFormData(_settings, test, done, file_name, file_size, 
                 headers, footer, form_data, content_length);
 
@@ -381,9 +423,11 @@ bool WebPagetest::UploadFile(CString url, bool done, WptTestDriver& test,
     unsigned short port;
     DWORD secure_flag;
     if (CrackUrl(url, host, port, object, secure_flag)) {
+      AtlTrace(_T("[wptdriver] - Connecting to '%s' port %d"), (LPCTSTR)host, port);
       HINTERNET connect = InternetConnect(internet, host, port, NULL, NULL,
                                           INTERNET_SERVICE_HTTP, 0, 0);
-      if (connect){
+      if (connect) {
+        AtlTrace(_T("[wptdriver] - POSTing to %s"), (LPCTSTR)object);
         HINTERNET request = HttpOpenRequest(connect, _T("POST"), object, 
                                               NULL, NULL, NULL, 
                                               INTERNET_FLAG_NO_CACHE_WRITE |
@@ -392,7 +436,8 @@ bool WebPagetest::UploadFile(CString url, bool done, WptTestDriver& test,
                                               INTERNET_FLAG_RELOAD |
                                               INTERNET_FLAG_KEEP_CONNECTION |
                                               secure_flag, NULL);
-        if (request){
+        if (request) {
+          SetLoginCredentials(request);
           if (HttpAddRequestHeaders(request, headers, headers.GetLength(), 
                                     HTTP_ADDREQ_FLAG_ADD |
                                     HTTP_ADDREQ_FLAG_REPLACE)) {
@@ -400,10 +445,13 @@ bool WebPagetest::UploadFile(CString url, bool done, WptTestDriver& test,
             memset( &buffers, 0, sizeof(buffers) );
             buffers.dwStructSize = sizeof(buffers);
             buffers.dwBufferTotal = content_length;
+            AtlTrace(_T("[wptdriver] - Sending request"));
             if (HttpSendRequestEx(request, &buffers, NULL, 0, NULL)) {
               DWORD bytes_written;
+              AtlTrace(_T("[wptdriver] - Writing data"));
               if (InternetWriteFile(request, (LPCSTR)form_data, 
                                     form_data.GetLength(), &bytes_written)) {
+                AtlTrace(_T("[wptdriver] - Uploading the file"));
                 // upload the file itself
                 if (file_handle != INVALID_HANDLE_VALUE && file_size) {
                     DWORD chunkSize = min(64 * 1024, file_size);
@@ -426,7 +474,11 @@ bool WebPagetest::UploadFile(CString url, bool done, WptTestDriver& test,
                     ret = true;
                   }
                 }
+              } else {
+                AtlTrace(_T("InternetWriteFile failed: %d"), GetLastError());
               }
+            } else {
+              AtlTrace(_T("HttpSendRequestEx failed: %d"), GetLastError());
             }
           }
           InternetCloseHandle(request);
@@ -442,6 +494,8 @@ bool WebPagetest::UploadFile(CString url, bool done, WptTestDriver& test,
 
   if (ret)
     DeleteFile(file);
+
+  AtlTrace(_T("[wptdriver] - Upload %s"), ret ? _T("SUCCEEDED") : _T("FAILED"));
 
   return ret;
 }
@@ -482,12 +536,12 @@ bool WebPagetest::CrackUrl(CString url, CString &host, unsigned short &port,
       port = parts.nPort;
       object = path;
       object += extra;
-      if (!host.CompareNoCase(_T("www.webpagetest.org")))
-        host = _T("agent.webpagetest.org");
       if (!lstrcmpi(scheme, _T("https"))) {
-        secure_flag = INTERNET_FLAG_SECURE |
-                      INTERNET_FLAG_IGNORE_CERT_CN_INVALID |
-                      INTERNET_FLAG_IGNORE_CERT_DATE_INVALID;
+        secure_flag = INTERNET_FLAG_SECURE;
+        if (!_settings._requireValidCertificate) {
+          secure_flag |= INTERNET_FLAG_IGNORE_CERT_CN_INVALID |
+          INTERNET_FLAG_IGNORE_CERT_DATE_INVALID;
+        }
         if (!port)
           port = INTERNET_DEFAULT_HTTPS_PORT;
       } else if (!port)
@@ -516,7 +570,7 @@ void WebPagetest::BuildFormData(WptSettings& settings, WptTestDriver& test,
       guid.Data4[3],guid.Data4[4],guid.Data4[5],guid.Data4[6],guid.Data4[7]);
   
   headers = CString("Content-Type: multipart/form-data; boundary=") + 
-              CString(CA2T(boundary)) + _T("\r\n");
+              CString(CA2T(boundary, CP_UTF8)) + _T("\r\n");
 
   // location
   form_data += CStringA("--") + boundary + "\r\n";
@@ -582,6 +636,12 @@ void WebPagetest::BuildFormData(WptSettings& settings, WptTestDriver& test,
     form_data += CStringA("--") + boundary + "\r\n";
     form_data += "Content-Disposition: form-data; name=\"ec2\"\r\n\r\n";
     form_data += CStringA(CT2A(_settings._ec2_instance)) + "\r\n";
+  }
+
+  if (_settings._azure_instance.GetLength()) {
+    form_data += CStringA("--") + boundary + "\r\n";
+    form_data += "Content-Disposition: form-data; name=\"azure\"\r\n\r\n";
+    form_data += CStringA(CT2A(_settings._azure_instance)) + "\r\n";
   }
 
   // DNS servers

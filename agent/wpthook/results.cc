@@ -56,10 +56,8 @@ static const TCHAR * IMAGE_RESPONSIVE_CHECK = _T("_screen_responsive.jpg");
 static const TCHAR * CONSOLE_LOG_FILE = _T("_console_log.json");
 static const TCHAR * TIMED_EVENTS_FILE = _T("_timed_events.json");
 static const TCHAR * CUSTOM_METRICS_FILE = _T("_metrics.json");
-static const TCHAR * TIMELINE_FILE = _T("_timeline.json");
 static const TCHAR * TRACE_FILE = _T("_trace.json");
 static const TCHAR * CUSTOM_RULES_DATA_FILE = _T("_custom_rules.json");
-static const TCHAR * DEV_TOOLS_FILE = _T("_devtools.json");
 static const DWORD RIGHT_MARGIN = 25;
 static const DWORD BOTTOM_MARGIN = 25;
 
@@ -77,7 +75,8 @@ Results::Results(TestState& test_state, WptTest& test, Requests& requests,
   , _screen_capture(screen_capture)
   , _saved(false)
   , _dev_tools(dev_tools)
-  , _trace(trace) {
+  , _trace(trace)
+  , reported_step_(0) {
   _file_base = shared_results_file_base;
   _visually_complete.QuadPart = 0;
   WptTrace(loglevel::kFunction, _T("[wpthook] - Results base file: %s"), 
@@ -132,6 +131,11 @@ void Results::Save(void) {
   if (!_saved) {
     ProcessRequests();
     if (_test._log_data) {
+      reported_step_++;
+      if (_test._current_event_name.IsEmpty())
+        current_step_name_.Format("Step %d", reported_step_);
+      else
+        current_step_name_ = _test._current_event_name;
       OptimizationChecks checks(_requests, _test_state, _test, _dns);
       checks.Check();
       base_page_CDN_ = checks._base_page_CDN;
@@ -144,11 +148,7 @@ void Results::Save(void) {
       SaveConsoleLog();
       SaveTimedEvents();
       SaveCustomMetrics();
-      if (_test._timeline) {
-        _dev_tools.SetStartTime(_test_state._start);
-        _dev_tools.Write(_file_base + DEV_TOOLS_FILE);
-      }
-      if (_test._trace)
+      if (_test._trace || _test._timeline)
         _trace.Write(_file_base + TRACE_FILE);
     }
     if (shared_result == -1 || shared_result == 0 || shared_result == 99999)
@@ -222,17 +222,17 @@ void Results::SaveImages(void) {
   // save the event-based images
   CxImage image;
   if (_screen_capture.GetImage(CapturedImage::START_RENDER, image))
-    SaveImage(image, _file_base + IMAGE_START_RENDER, _test._image_quality);
+    SaveImage(image, _file_base + IMAGE_START_RENDER, _test._image_quality, false, _test._full_size_video);
   if (_screen_capture.GetImage(CapturedImage::DOCUMENT_COMPLETE, image))
-    SaveImage(image, _file_base + IMAGE_DOC_COMPLETE, _test._image_quality);
+    SaveImage(image, _file_base + IMAGE_DOC_COMPLETE, _test._image_quality, false, _test._full_size_video);
   if (_screen_capture.GetImage(CapturedImage::FULLY_LOADED, image)) {
     if (_test._png_screen_shot)
       image.Save(_file_base + IMAGE_FULLY_LOADED_PNG, CXIMAGE_FORMAT_PNG);
-    SaveImage(image, _file_base + IMAGE_FULLY_LOADED, _test._image_quality);
+    SaveImage(image, _file_base + IMAGE_FULLY_LOADED, _test._image_quality, false, _test._full_size_video);
   }
   if (_screen_capture.GetImage(CapturedImage::RESPONSIVE_CHECK, image)) {
     SaveImage(image, _file_base + IMAGE_RESPONSIVE_CHECK, _test._image_quality,
-              true);
+              true, _test._full_size_video);
   }
 
   SaveVideo();
@@ -242,11 +242,14 @@ void Results::SaveImages(void) {
 -----------------------------------------------------------------------------*/
 void Results::SaveVideo(void) {
   _screen_capture.Lock();
+  CStringA histograms = "[";
+  DWORD histogram_count = 0;
   CxImage * last_image = NULL;
   DWORD width, height;
   CString file_name;
   POSITION pos = _screen_capture._captured_images.GetHeadPosition();
   while (pos) {
+    CStringA histogram;
     CapturedImage& image = _screen_capture._captured_images.GetNext(pos);
     if (image._type != CapturedImage::RESPONSIVE_CHECK) {
       CxImage * img = new CxImage;
@@ -268,24 +271,43 @@ void Results::SaveVideo(void) {
           if (ImagesAreDifferent(last_image, img)) {
             if (!_test_state._render_start.QuadPart)
               _test_state._render_start.QuadPart = image._capture_time.QuadPart;
+            histogram = GetHistogramJSON(*img);
             if (_test._video) {
               _visually_complete.QuadPart = image._capture_time.QuadPart;
               file_name.Format(_T("%s_progress_%04d.jpg"), (LPCTSTR)_file_base, 
                                 image_time);
-              SaveImage(*img, file_name, _test._image_quality);
-              file_name.Format(_T("%s_progress_%04d.hist"), (LPCTSTR)_file_base, 
-                                image_time);
-              SaveHistogram(*img, file_name);
+              SaveImage(*img, file_name, _test._image_quality, false, _test._full_size_video);
             }
           }
         } else {
           width = img->GetWidth();
           height = img->GetHeight();
           // always save the first image at time zero
-          file_name = _file_base + _T("_progress_0000.jpg");
-          SaveImage(*img, file_name, _test._image_quality);
-          file_name = _file_base + _T("_progress_0000.hist");
-          SaveHistogram(*img, file_name);
+          image_time = 0;
+          image_time_ms = 0;
+          histogram = GetHistogramJSON(*img);
+          if (_test._video) {
+            file_name = _file_base + _T("_progress_0000.jpg");
+            SaveImage(*img, file_name, _test._image_quality, false, _test._full_size_video);
+          }
+        }
+
+        if (!histogram.IsEmpty()) {
+          if (histogram_count)
+            histograms += ", ";
+          histograms += "{\"histogram\": ";
+          histograms += histogram;
+          histograms += ", \"time\": ";
+          CStringA buff;
+          buff.Format("%d", image_time_ms);
+          histograms += buff;
+          histograms += "}";
+          histogram_count++;
+          if (_test._video) {
+            file_name.Format(_T("%s_progress_%04d.hist"), (LPCTSTR)_file_base,
+                             image_time);
+            SaveHistogram(histogram, file_name);
+          }
         }
 
         if (last_image)
@@ -299,6 +321,20 @@ void Results::SaveVideo(void) {
 
   if (last_image)
     delete last_image;
+
+  if (histogram_count > 1) {
+    histograms += "]";
+    TCHAR path[MAX_PATH];
+    lstrcpy(path, _file_base);
+    TCHAR * file = PathFindFileName(path);
+    int run = _tstoi(file);
+    if (run) {
+      int cached = _tcsstr(file, _T("_Cached")) ? 1 : 0;
+      *file = 0;
+      file_name.Format(_T("%s%d.%d.histograms.json"), path, run, cached);
+      SaveHistogram(histograms, file_name);
+    }
+  }
 
   _screen_capture.Unlock();
 }
@@ -334,11 +370,12 @@ bool Results::ImagesAreDifferent(CxImage * img1, CxImage* img2) {
 /*-----------------------------------------------------------------------------
 -----------------------------------------------------------------------------*/
 void Results::SaveImage(CxImage& image, CString file, BYTE quality,
-                        bool force_small) {
+                        bool force_small, bool _full_size_video) {
   if (image.IsValid()) {
     CxImage img(image);
-    if (force_small || (img.GetWidth() > 600 && img.GetHeight() > 600))
-      img.Resample2(img.GetWidth() / 2, img.GetHeight() / 2);
+    if (!_full_size_video)
+      if (force_small || (img.GetWidth() > 600 && img.GetHeight() > 600))
+        img.Resample2(img.GetWidth() / 2, img.GetHeight() / 2);
 
     img.SetCodecOption(8, CXIMAGE_FORMAT_JPG);  // optimized encoding
     img.SetCodecOption(16, CXIMAGE_FORMAT_JPG); // progressive
@@ -347,10 +384,12 @@ void Results::SaveImage(CxImage& image, CString file, BYTE quality,
   }
 }
 
+
 /*-----------------------------------------------------------------------------
-  Save the image histogram as a json data structure (ignoring white pixels)
+  Calculate the image histogram as a json data structure (ignoring white pixels)
 -----------------------------------------------------------------------------*/
-void Results::SaveHistogram(CxImage& image, CString file) {
+CStringA Results::GetHistogramJSON(CxImage& image) {
+  CStringA histogram;
   if (image.IsValid()) {
     DWORD r[256], g[256], b[256];
     for (int i = 0; i < 256; i++) {
@@ -390,10 +429,18 @@ void Results::SaveHistogram(CxImage& image, CString file) {
     red += "]";
     green += "]";
     blue += "]";
-    CStringA histogram = CStringA("{") + red + 
-                         CStringA(",") + green + 
-                         CStringA(",") + blue + CStringA("}");
+    histogram = CStringA("{") + red + 
+                CStringA(",") + green + 
+                CStringA(",") + blue + CStringA("}");
+  }
+  return histogram;
+}
 
+/*-----------------------------------------------------------------------------
+  Save the image histogram as a json data structure (ignoring white pixels)
+-----------------------------------------------------------------------------*/
+void Results::SaveHistogram(CStringA& histogram, CString file) {
+  if (!histogram.IsEmpty()) {
     HANDLE file_handle = CreateFile(file, GENERIC_WRITE, 0, 0, 
                                     CREATE_ALWAYS, 0, 0);
     if (file_handle != INVALID_HANDLE_VALUE) {
@@ -427,7 +474,7 @@ void Results::SavePageData(OptimizationChecks& checks){
           _test_state._start_time.wMinute, _test_state._start_time.wSecond);
     result += buff;
     // Event Name
-    result += "\t";
+    result += current_step_name_ + "\t";
     // URL
     result += CStringA((LPCSTR)CT2A(_test._navigated_url)) + "\t";
     // Load Time (ms)
@@ -788,6 +835,7 @@ void Results::ProcessRequests(void) {
   std::tr1::regex adult_regex("[^0-9a-zA-Z]2257[^0-9a-zA-Z]");
   while (pos) {
     Request * request = _requests._requests.GetNext(pos);
+    WptTrace(loglevel::kFunction, _T("[wpthook] - Processing request %S%S"), (LPCSTR)request->GetHost(), (LPCSTR)request->_request_data.GetObject());
     if (request && 
         (!request->_from_browser || !NativeRequestExists(request))) {
       request->Process();
@@ -834,7 +882,7 @@ void Results::ProcessRequests(void) {
           base_page_result_ = result_code;
           base_page_server_rtt_ = request->rtt_;
           base_page_address_count_ = _dns.GetAddressCount(
-                                          (LPCTSTR)CA2T(request->GetHost()));
+              (LPCTSTR)CA2T(request->GetHost(), CP_UTF8));
           request->_is_base_page = true;
           base_page_complete_.QuadPart = request->_end.QuadPart;
           if ((!_test_state._test_result ||  _test_state._test_result == 99999)
@@ -969,6 +1017,8 @@ void Results::SaveRequest(HANDLE file, HANDLE headers, Request * request,
   CStringA result;
   CStringA buff;
 
+  WptTrace(loglevel::kFunction, _T("[wpthook] - Saving request %S%S"), (LPCSTR)request->GetHost(), (LPCSTR)request->_request_data.GetObject());
+
   // Date
   buff.Format("%02d/%02d/%02d\t", _test_state._start_time.wMonth,
         _test_state._start_time.wDay, _test_state._start_time.wYear);
@@ -978,7 +1028,7 @@ void Results::SaveRequest(HANDLE file, HANDLE headers, Request * request,
         _test_state._start_time.wMinute, _test_state._start_time.wSecond);
   result += buff;
   // Event Name
-  result += "\t";
+  result += current_step_name_ + "\t";
   // IP Address
   struct sockaddr_in addr;
   addr.sin_addr.S_un.S_addr = request->_peer_address;
@@ -1012,7 +1062,8 @@ void Results::SaveRequest(HANDLE file, HANDLE headers, Request * request,
   buff.Format("%d\t", request->_ms_start);
   result += buff;
   // Bytes Out
-  buff.Format("%d\t", request->_request_data.GetDataSize());
+  buff.Format("%d\t", request->_bytes_out ? request->_bytes_out:
+              request->_request_data.GetDataSize());
   result += buff;
   // Bytes In
   buff.Format("%d\t", request->_bytes_in ? request->_bytes_in :
@@ -1158,7 +1209,8 @@ void Results::SaveRequest(HANDLE file, HANDLE headers, Request * request,
   result += request->initiator_line_ + _T("\t");
   result += request->initiator_column_ + _T("\t");
   // Server Count
-  buff.Format("%d\t", _dns.GetAddressCount((LPCTSTR)CA2T(request->GetHost())));
+  buff.Format("%d\t",
+      _dns.GetAddressCount((LPCTSTR)CA2T(request->GetHost(), CP_UTF8)));
   result += buff;
   // Server RTT
   result += request->rtt_ + "\t";

@@ -5415,10 +5415,14 @@ wpt.contentScript.collectStats_ = function(customMetrics) {
         var marks = window.performance.getEntriesByType("mark");
       else
         var marks = window.performance.webkitGetEntriesByType("mark");
-      if (marks.length)
+      if (marks.length) {
+        var m = [];
+        for (var i = 0; i < marks.length; i++)
+          m.push({"entryType": marks[i].entryType, "name": marks[i].name, "startTime": marks[i].startTime});
         chrome.extension.sendRequest({'message': 'wptMarks', 
-                                      'marks': marks },
+                                      'marks': m },
                                      function(response) {});
+      }
     }
     if (customMetrics.length) {
       var lines = customMetrics.split("\n");
@@ -18137,34 +18141,6 @@ wpt.commands.CommandRunner.prototype.doSetCookie = function(cookie_path, data) {
 };
 
 /**
- * Block all urls matching |blockPattern| using the declarative web
- * request API.
- * @param {string} blockPattern
- */
-wpt.commands.CommandRunner.prototype.doBlockUsingDeclarativeApi_ =
-    function(blockPattern) {
-
-  // Match requests where any part of the URL contains |blockPattern|.
-  var requestMatcher = new chrome.declarativeWebRequest.RequestMatcher({
-    url: {
-      urlContains: blockPattern
-    }
-  });
-
-  // Blocking is implemented by canceling any matching request.
-  var blockingRule = {
-    conditions: [
-        requestMatcher
-    ],
-    actions: [
-        new chrome.declarativeWebRequest.CancelRequest()
-    ]
-  };
-
-  this.chromeApi_.declarativeWebRequest.onRequest.addRules([blockingRule]);
-};
-
-/**
  * Block all urls matching |blockPattern| using the non-declarative web
  * request API.
  * @param {string} blockPattern
@@ -18202,15 +18178,7 @@ wpt.commands.CommandRunner.prototype.doBlock = function(blockPattern) {
   // web request API, the test that we have permission to use it will
   // fail.
   var self = this;
-  this.chromeApi_.permissions.contains(
-      {permissions: ['declarativeWebRequest']},
-      function(hasPermission) {
-        if (hasPermission) {
-          self.doBlockUsingDeclarativeApi_(blockPattern);
-        } else {
-          self.doBlockUsingRequestCallback_(blockPattern);
-        }
-      });
+  self.doBlockUsingRequestCallback_(blockPattern);
 };
 
 /**
