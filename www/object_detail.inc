@@ -420,7 +420,7 @@ function AddHeaders(&$requests, $headers_file_name, $stepName = null) {
                 $is_started = ($trimmed == 'Request details:');
             } else {
                 if (isset($stepName) && strpos($trimmed, 'Step name:') !== false) {
-                    $thisStepName = substr($trimmed, 11, strlen($trimmed));
+                    $thisStepName = substr($trimmed, 10, strlen($trimmed));
                     if ($thisStepName != $stepName) {
                         logAlways("AddHeaders: skipping header. [$thisStepName, $stepName]");
                         $is_started = false;
