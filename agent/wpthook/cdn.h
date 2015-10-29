@@ -65,6 +65,7 @@ CDN_PROVIDER cdnList[] = {
   {".simplecdn.net", "Simple CDN"},
   {".instacontent.net", "Mirror Image"},
   {".footprint.net", "Level 3"},
+  {".fpbns.net", "Level 3"},
   {".ay1.b.yahoo.com", "Yahoo"},
   {".yimg.", "Yahoo"},
   {".yahooapis.com", "Yahoo"},
@@ -141,6 +142,9 @@ CDN_PROVIDER cdnList[] = {
   {".cdninstagram.com", "Facebook"},
   {".rlcdn.com", "Reapleaf"},
   {".wp.com", "WordPress Jetpack"},
+  {".aads1.net", "Aryaka"},
+  {".aads-cn.net", "Aryaka"},
+  {".aads-cng.net", "Aryaka"},
   {"END_MARKER", "END_MARKER"}
 };
 
@@ -171,5 +175,6 @@ CDN_PROVIDER_HEADER cdnHeaderList[] = {
   {"server", "Golfe2", "Google"},
   {"server", "tsa_b", "Twitter"},
   {"X-CDN", "Incapsula", "Incapsula"},
-  {"X-Iinfo", "", "Incapsula"}
+  {"X-Iinfo", "", "Incapsula"},
+  {"X-Ar-Debug", "", "Aryaka"}
 };

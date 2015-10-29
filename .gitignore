@@ -45,3 +45,4 @@ agent/js/5c.sh
 */webdriver-support/java/build/
 *.iml
 logs/
+agent/js/5c2.sh

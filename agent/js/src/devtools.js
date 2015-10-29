@@ -30,7 +30,7 @@ var http = require('http');
 var logger = require('logger');
 var url = require('url');
 
-var DEV_TOOLS_COMMAND_TIMEOUT = 60000;
+var DEV_TOOLS_COMMAND_TIMEOUT = 5000;
 
 /** Allow tests to stub out. */
 exports.WebSocket = require('ws');
@@ -92,6 +92,7 @@ DevTools.prototype.onMessage = function(callback) {
 DevTools.prototype.connect = function(callback, errback) {
   'use strict';
   var retries = 0;  // ios_webkit_debug_proxy sometimes returns an empty array.
+  this.debuggerUrl_ = undefined;
   var listTabs = (function() {
     var request = http.get(url.parse(this.devToolsUrl_), function(response) {
       exports.processResponse(response, function(responseBody) {
@@ -102,7 +103,9 @@ DevTools.prototype.connect = function(callback, errback) {
           global.setTimeout(listTabs, 2000);
           return;
         }
-        this.debuggerUrl_ = devToolsJson[0].webSocketDebuggerUrl;
+        if (devToolsJson && devToolsJson.length) {
+          this.debuggerUrl_ = devToolsJson[0].webSocketDebuggerUrl;
+        }
         if (!this.debuggerUrl_) {
           throw new Error('DevTools response at ' + this.devToolsUrl_ +
               ' does not contain webSocketDebuggerUrl: ' + responseBody);
@@ -231,10 +234,15 @@ DevTools.prototype.command_ = function(command, callback, errback) {
       errback: errback
     };
     global.setTimeout(function(){
-      if (this.commandCallbacks_[command.id]) {
+      var callbackErrback = this.commandCallbacks_[command.id];
+      if (callbackErrback) {
         delete this.commandCallbacks_[command.id];
         logger.debug('Timeout for command: %j', command);
-        this.commandCallbacks_[command.id]({});
+        if (callbackErrback.errback) {
+          try {
+            callbackErrback.errback(new Error("Command Timeout"));
+          } catch(e) {}
+        }
       }
     }.bind(this), DEV_TOOLS_COMMAND_TIMEOUT);
   }

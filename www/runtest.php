@@ -90,6 +90,7 @@
             $test['domElement'] = trim($req_domelement);
             $test['login'] = trim($req_login);
             $test['password'] = trim($req_password);
+            $test['customHeaders'] = trim($req_customHeaders);
             $test['runs'] = (int)$req_runs;
             $test['fvonly'] = (int)$req_fvonly;
             $test['timeout'] = (int)$req_timeout;
@@ -215,6 +216,23 @@
                 if (strlen($test['addCmdLine']))
                   $test['addCmdLine'] .= ' ';
                 $test['addCmdLine'] .= '--user-agent="' . $req_uastring . '"';
+              }
+            }
+            if (isset($req_wprDesktop) && $req_wprDesktop) {
+              $wprDesktop = GetSetting('wprDesktop');
+              if ($wprDesktop) {
+                if (strlen($test['addCmdLine']))
+                  $test['addCmdLine'] .= ' ';
+                $test['addCmdLine'] .= "--host-resolver-rules=\"MAP * $wprDesktop,EXCLUDE localhost,EXCLUDE 127.0.0.1\"";
+                $test['ignoreSSL'] = 1;
+              }
+            } elseif (isset($req_wprMobile) && $req_wprMobile) {
+              $wprMobile = GetSetting('wprMobile');
+              if ($wprMobile) {
+                if (strlen($test['addCmdLine']))
+                  $test['addCmdLine'] .= ' ';
+                $test['addCmdLine'] .= "--host-resolver-rules=\"MAP * $wprMobile,EXCLUDE localhost,EXCLUDE 127.0.0.1\"";
+                $test['ignoreSSL'] = 1;
               }
             }
 
@@ -991,7 +1009,7 @@ function ValidateKey(&$test, &$error, $key = null)
       }else{
         $error = 'Invalid API Key';
       }
-      if (!strlen($error)) {
+      if (!strlen($error) && $key != $keys['server']['key']) {
           global $usingAPI;
           $usingAPI = true;
       }
@@ -1230,7 +1248,8 @@ function ValidateScript(&$script, &$error)
 
         if( strlen($error) )
             unset($url);
-    } 
+    }
+
     return $url;
 }
 
@@ -1658,31 +1677,29 @@ function CheckIp(&$test)
     global $user;
     global $usingAPI;
     $date = gmdate("Ymd");
-    if (!$usingAPI) {
-        $ip2 = @$test['ip'];
-        $ip = $_SERVER['REMOTE_ADDR'];
-        $blockIps = file('./settings/blockip.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        if (isset($blockIps) && is_array($blockIps) && count($blockIps)) {
-          $blockIpsAuto = file('./settings/blockipauto.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-          if (isset($blockIpsAuto) && is_array($blockIpsAuto) && count($blockIpsAuto))
-            $blockIps = array_merge($blockIps, $blockIpsAuto);
-          foreach( $blockIps as $block ) {
-              $block = trim($block);
-              if( strlen($block) ) {
-                  if( ereg($block, $ip) ) {
-                      logMsg("$ip: matched $block for url {$test['url']}", "./log/{$date}-blocked.log", true);
-                      $ok = false;
-                      break;
-                  }
+    $ip2 = @$test['ip'];
+    $ip = $_SERVER['REMOTE_ADDR'];
+    $blockIps = file('./settings/blockip.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (isset($blockIps) && is_array($blockIps) && count($blockIps)) {
+      $blockIpsAuto = file('./settings/blockipauto.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+      if (isset($blockIpsAuto) && is_array($blockIpsAuto) && count($blockIpsAuto))
+        $blockIps = array_merge($blockIps, $blockIpsAuto);
+      foreach( $blockIps as $block ) {
+          $block = trim($block);
+          if( strlen($block) ) {
+              if( ereg($block, $ip) ) {
+                  logMsg("$ip: matched $block for url {$test['url']}", "./log/{$date}-blocked.log", true);
+                  $ok = false;
+                  break;
+              }
 
-                  if( $ip2 && strlen($ip2) && ereg($block, $ip2) ) {
-                      logMsg("$ip2: matched(2) $block for url {$test['url']}", "./log/{$date}-blocked.log", true);
-                      $ok = false;
-                      break;
-                  }
+              if( $ip2 && strlen($ip2) && ereg($block, $ip2) ) {
+                  logMsg("$ip2: matched(2) $block for url {$test['url']}", "./log/{$date}-blocked.log", true);
+                  $ok = false;
+                  break;
               }
           }
-        }
+      }
     }
 
     return $ok;
@@ -1710,10 +1727,16 @@ function CheckUrl($url)
         if ($blockUrls !== false && count($blockUrls) ||
             $blockHosts !== false && count($blockHosts) ||
             $blockAuto !== false && count($blockAuto)) {
+            // Follow redirects to see if they are obscuring the site being tested
+            GetRedirect($url, $rhost, $rurl);
             foreach( $blockUrls as $block ) {
                 $block = trim($block);
                 if( strlen($block) && preg_match("/$block/i", $url)) {
                     logMsg("{$_SERVER['REMOTE_ADDR']}: url $url matched $block", "./log/{$date}-blocked.log", true);
+                    $ok = false;
+                    break;
+                } elseif( strlen($block) && strlen($rurl) && preg_match("/$block/i", $rurl)) {
+                    logMsg("{$_SERVER['REMOTE_ADDR']}: url $url redirected to $rurl matched $block", "./log/{$date}-blocked.log", true);
                     $ok = false;
                     break;
                 }
@@ -1726,7 +1749,13 @@ function CheckUrl($url)
                     if( strlen($block) &&
                         (!strcasecmp($host, $block) ||
                          !strcasecmp($host, "www.$block"))) {
-                         logMsg("{$_SERVER['REMOTE_ADDR']}: host $url matched $block", "./log/{$date}-blocked.log", true);
+                         logMsg("{$_SERVER['REMOTE_ADDR']}: $url matched $block", "./log/{$date}-blocked.log", true);
+                        $ok = false;
+                        break;
+                    } elseif( strlen($block) &&
+                        (!strcasecmp($rhost, $block) ||
+                         !strcasecmp($rhost, "www.$block"))) {
+                         logMsg("{$_SERVER['REMOTE_ADDR']}: $url redirected to $rhost which matched $block", "./log/{$date}-blocked.log", true);
                         $ok = false;
                         break;
                     }
@@ -1740,7 +1769,7 @@ function CheckUrl($url)
                     if( strlen($block) &&
                         (!strcasecmp($host, $block) ||
                          !strcasecmp($host, "www.$block"))) {
-                         logMsg("{$_SERVER['REMOTE_ADDR']}: host $url matched auto-block $block", "./log/{$date}-blocked.log", true);
+                         logMsg("{$_SERVER['REMOTE_ADDR']}: $url matched auto-block $block", "./log/{$date}-blocked.log", true);
                         $ok = false;
                         break;
                     }
@@ -1770,6 +1799,8 @@ function CreateTest(&$test, $url, $batch = 0, $batch_locations = 0)
 {
     global $settings;
     $testId = null;
+    if (is_file('./settings/block.txt'))
+      $forceBlock = trim(file_get_contents('./settings/block.txt'));
 
     if (CheckUrl($url) && WptHookValidateTest($test)) {
         // generate the test ID
@@ -1888,8 +1919,13 @@ function CreateTest(&$test, $url, $batch = 0, $batch_locations = 0)
                 $testFile .= "\r\nCapture Video=1";
             if( strlen($test['type']) )
                 $testFile .= "\r\ntype={$test['type']}";
-            if( $test['block'] )
+            if( $test['block'] ) {
                 $testFile .= "\r\nblock={$test['block']}";
+                if (isset($forceBlock))
+                  $testFile .= " $forceBlock";
+            } elseif (isset($forceBlock)) {
+                $testFile .= "\r\nblock=$forceBlock";
+            }
             if( $test['noopt'] )
                 $testFile .= "\r\nnoopt=1";
             if( $test['noimages'] )
@@ -2315,6 +2351,17 @@ function ProcessTestScript($url, &$test) {
       $script = "navigate\t$url";
     $script = "addHeader\t$header\r\n" . $script;
   }
+  // Add custom headers
+  if (strlen($test['customHeaders'])) {
+    if (!isset($script) || !strlen($script))
+      $script = "navigate\t$url";
+    $headers = preg_split("/\r\n|\n|\r/", $test['customHeaders']);
+    $headerCommands = "";
+    foreach ($headers as $header) {
+      $headerCommands = $headerCommands . "addHeader\t".$header."\r\n";
+    }
+    $script = $headerCommands . $script;
+  }
   return $script;
 }
 
@@ -2328,7 +2375,7 @@ function ProcessTestScript($url, &$test) {
 function ValidateCommandLine($cmd, &$error) {
   if (isset($cmd) && strlen($cmd)) {
     $flags = explode(' ', $cmd);
-    if ($flags && is_array($flags) && count($flags)) {
+    if ($flags && is_array($flags) && count($flags)) {                
       foreach($flags as $flag) {
         if (!preg_match('/^--(([a-zA-Z0-9\-\.\+=,_ "]+)|((proxy-server|proxy-pac-url|force-fieldtrials)=[a-zA-Z0-9\-\.\+=,_:\/]+))$/', $flag)) {
           $error = 'Invalid command-line option: "' . htmlspecialchars($flag) . '"';
