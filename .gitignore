@@ -39,3 +39,11 @@ agent/js/runtmp_*
 /www/installers/browsers/nightly.dat
 /www/cli/archive-ia.php
 /www/cli/ec2-keys.inc.php
+agent/js/5c.sh
+*.mp4
+agent/js/5c2.sh
+.gradle
+*/webdriver-support/java/build/
+*.iml
+logs/
+_dist-www/
