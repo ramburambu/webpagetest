@@ -30,6 +30,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <TlHelp32.h>
 
+extern HANDLE logfile_handle;
+extern CRITICAL_SECTION *logfile_cs;
+
 namespace loglevel {
   const int kError = 1;
   const int kWarning = 2;
@@ -50,6 +53,9 @@ void DeleteOldDirectoryEntries(CString directory, int seconds);
 void DeleteRegKey(HKEY hParent, LPCTSTR key, bool remove = true);
 void CopyDirectoryTree(CString source, CString destination);
 bool FindBrowserWindow(DWORD process_id, HWND& frame_window);
+DWORD ElapsedMs(LARGE_INTEGER start, LARGE_INTEGER end);
+CStringA UTF16toUTF8(const CStringW& utf16);
+void WriteToLogFile(CStringA &msg);
 void WptTrace(int level, LPCTSTR format, ...);
 
 typedef CAtlList<CStringA> HookSymbolNames;
