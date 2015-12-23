@@ -200,6 +200,7 @@ void WptDriverCore::WorkThread(void) {
             test._run = test._specific_run ? test._specific_run : test._run;
             test._clear_cache = true;
             bool ok = BrowserTest(test, browser);
+
             if (!test._fv_only) {
               test._clear_cache = false;
               if (ok) {
@@ -286,9 +287,20 @@ bool WptDriverCore::BrowserTest(WptTestDriver& test, WebBrowser &browser) {
 
   WptTrace(loglevel::kFunction,_T("[wptdriver] WptDriverCore::BrowserTest\n"));
 
+  test.SetFileBase();
+  // setup log file
+  logfile_handle = CreateFile(test._file_base + _T("_wptdriver.log"), GENERIC_WRITE, 0,
+    NULL, OPEN_ALWAYS, 0, 0);
+  if (logfile_handle == INVALID_HANDLE_VALUE) {
+    WptTrace(loglevel::kFunction, _T("Failed to open log file. Error: %d"), GetLastError());
+  } else {
+    logfile_cs = (CRITICAL_SECTION *)malloc(sizeof(CRITICAL_SECTION));
+    ZeroMemory(logfile_cs, sizeof(CRITICAL_SECTION));
+    InitializeCriticalSection(logfile_cs);
+  }
+
   test._run_error.Empty();
   ResetTestResult();
-  test.SetFileBase();
   if (test._clear_cache) {
     FlushDNS();
     browser.ClearUserData();
@@ -300,6 +312,11 @@ bool WptDriverCore::BrowserTest(WptTestDriver& test, WebBrowser &browser) {
   ShowCursor(FALSE);
   ret = browser.RunAndWait();
   ShowCursor(TRUE);
+
+  if (logfile_handle) {
+    CloseHandle(logfile_handle);
+    logfile_handle = NULL;
+  }
 
   if (test._tcpdump)
     _winpcap.StopCapture();

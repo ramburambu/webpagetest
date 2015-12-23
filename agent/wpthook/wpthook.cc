@@ -35,6 +35,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "window_messages.h"
 
 WptHook * global_hook = NULL;
+HANDLE logfile_handle = NULL;
+CRITICAL_SECTION *logfile_cs = NULL;
+
 extern HINSTANCE global_dll_handle;
 
 static const UINT_PTR TIMER_DONE = 1;
@@ -43,6 +46,7 @@ static const DWORD TIMER_DONE_INTERVAL = 100;
 static const DWORD INIT_TIMEOUT = 30000;
 static const DWORD TIMER_FORCE_REPORT_INTERVAL = 10000;
 
+static const TCHAR * WPTHOOK_LOG = _T("_wpthook.log");
 /*-----------------------------------------------------------------------------
 -----------------------------------------------------------------------------*/
 WptHook::WptHook(void):
@@ -88,6 +92,17 @@ WptHook::WptHook(void):
       free( pVersion );
     }
   }
+
+  logfile_handle = CreateFile(file_base_ + WPTHOOK_LOG, GENERIC_WRITE, 0,
+    NULL, OPEN_ALWAYS, 0, 0);
+  if (logfile_handle == INVALID_HANDLE_VALUE) {
+    WptTrace(loglevel::kFunction, _T("Failed to open log file. Error: %d"), GetLastError());
+  } else {
+    logfile_cs = (CRITICAL_SECTION *)malloc(sizeof(CRITICAL_SECTION));
+    ZeroMemory(logfile_cs, sizeof(CRITICAL_SECTION));
+    InitializeCriticalSection(logfile_cs);
+  }
+
 }
 
 /*-----------------------------------------------------------------------------
