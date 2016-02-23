@@ -42,6 +42,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <zlib.h>
 #include <zip.h>
 #include <regex>
+#include <Wincrypt.h>
 
 static const TCHAR * PAGE_DATA_FILE = _T("_IEWPG.txt");
 static const TCHAR * REQUEST_DATA_FILE = _T("_IEWTR.txt");
@@ -61,6 +62,8 @@ static const TCHAR * TRACE_NETLOG_FILE = _T("_trace_netlog.json");
 static const TCHAR * CUSTOM_RULES_DATA_FILE = _T("_custom_rules.json");
 static const DWORD RIGHT_MARGIN = 25;
 static const DWORD BOTTOM_MARGIN = 25;
+static const short SHALEN = 20;
+
 
 /*-----------------------------------------------------------------------------
 -----------------------------------------------------------------------------*/
@@ -224,9 +227,11 @@ void Results::SaveStatusMessages(void) {
 -----------------------------------------------------------------------------*/
 void Results::SaveImages(void) {
   // save the event-based images
-  CxImage image;
-  if (_screen_capture.GetImage(CapturedImage::START_RENDER, image))
+  CxImage image; 
+
+  if (_screen_capture.GetImage(CapturedImage::START_RENDER, image)) {
     SaveImage(image, _file_base + IMAGE_START_RENDER, _test._image_quality, false, _test._full_size_video);
+  }
   if (_screen_capture.GetImage(CapturedImage::DOCUMENT_COMPLETE, image))
     SaveImage(image, _file_base + IMAGE_DOC_COMPLETE, _test._image_quality, false, _test._full_size_video);
   if (_screen_capture.GetImage(CapturedImage::FULLY_LOADED, image)) {
@@ -240,6 +245,62 @@ void Results::SaveImages(void) {
   }
 
   SaveVideo();
+}
+
+CString Results::GetImageSha1(CxImage &image) {
+  HCRYPTPROV hProv = 0;
+  HCRYPTHASH hHash = 0;
+  BYTE rgbHash[SHALEN];
+  DWORD cbHash = 0;
+  CHAR rgbDigits[] = "0123456789abcdef";
+  CString hash = ""; // 40 hexadecimal characters
+  DWORD dwStatus;
+
+  if (!CryptAcquireContext(&hProv,
+    NULL,
+    NULL,
+    PROV_RSA_FULL,
+    CRYPT_VERIFYCONTEXT))
+  {
+    dwStatus = GetLastError();
+    WptTrace(loglevel::kError, _T("[wpthook] - CryptAcquireContext failed %d"), dwStatus);
+    return "";
+  }
+
+  if (!CryptCreateHash(hProv, CALG_SHA1, 0, 0, &hHash)) {
+    dwStatus = GetLastError();
+    WptTrace(loglevel::kError, _T("[wpthook] - CryptCreateHash failed %d"), dwStatus);
+    CryptReleaseContext(hProv, 0);
+    return "";
+  }
+
+  if (!CryptHashData(hHash, image.GetBits(), image.GetSize(), 0)) {
+    dwStatus = GetLastError();
+    WptTrace(loglevel::kError, _T("[wpthook] - CryptHashData failed %d"), dwStatus);
+
+    CryptReleaseContext(hProv, 0);
+    CryptDestroyHash(hHash);
+    return "";
+  }
+
+  cbHash = SHALEN;
+  if (CryptGetHashParam(hHash, HP_HASHVAL, rgbHash, &cbHash, 0)) {
+    for (DWORD i = 0; i < cbHash; i++)
+    {
+      hash += rgbDigits[rgbHash[i] & 0xf];
+      hash += rgbDigits[rgbHash[i] >> 4];
+    }
+  } else {
+    dwStatus = GetLastError();
+    WptTrace(loglevel::kError, _T("[wpthook] - CryptGetHashParam failed %d"), dwStatus);
+  }
+
+  WptTrace(loglevel::kFunction, _T("[wpthook] - Image hash %s"), (LPCTSTR)hash);
+
+  CryptDestroyHash(hHash);
+  CryptReleaseContext(hProv, 0);
+
+  return hash;
 }
 
 /*-----------------------------------------------------------------------------
@@ -279,10 +340,10 @@ void Results::SaveVideo(void) {
             if (_test._video) {
               _visually_complete.QuadPart = image._capture_time.QuadPart;
               if (!_test.IsServerMultistepCapable()) {
-                file_name.Format(_T("%s_progress_%04d.jpg"), (LPCTSTR)_file_base,
+                file_name.Format(_T("%s_progress_%s_%04d.jpg"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img),
                   image_time);
               } else {
-                file_name.Format(_T("%s_progress_%d_%04d.jpg"), (LPCTSTR)_file_base,
+                file_name.Format(_T("%s_progress_%s_%d_%04d.jpg"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img),
                   reported_step_, image_time);
               }
               SaveImage(*img, file_name, _test._image_quality, false, _test._full_size_video);
@@ -297,9 +358,9 @@ void Results::SaveVideo(void) {
           histogram = GetHistogramJSON(*img);
           if (_test._video) {
             if (!_test.IsServerMultistepCapable()) {
-              file_name.Format(_T("%s_progress_0000.jpg"), (LPCTSTR)_file_base);
+              file_name.Format(_T("%s_progress_%s_0000.jpg"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img));
             } else {
-              file_name.Format(_T("%s_progress_%d_0000.jpg"), (LPCTSTR)_file_base, reported_step_);
+              file_name.Format(_T("%s_progress_%s_%d_0000.jpg"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img), reported_step_);
             }
             SaveImage(*img, file_name, _test._image_quality, false, _test._full_size_video);
           }
@@ -318,10 +379,10 @@ void Results::SaveVideo(void) {
           histogram_count++;
           if (_test._video) {
             if (!_test.IsServerMultistepCapable()) {
-              file_name.Format(_T("%s_progress_%04d.hist"), (LPCTSTR)_file_base,
+              file_name.Format(_T("%s_progress_%s_%04d.hist"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img),
                 image_time);
             } else {
-              file_name.Format(_T("%s_progress_%d_%04d.hist"), (LPCTSTR)_file_base,
+              file_name.Format(_T("%s_progress_%s_%d_%04d.hist"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img),
                 reported_step_, image_time);
             }
             SaveHistogram(histogram, file_name);

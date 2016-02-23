@@ -114,4 +114,7 @@ private:
   void SaveHistogram(CStringA& histogram, CString file);
   CStringA GetHistogramJSON(CxImage& image);
   bool NativeRequestExists(Request * browser_request);
+
+protected:
+  CString GetImageSha1(CxImage &image);
 };
