@@ -432,16 +432,15 @@ function AddImages($id, $testPath, &$result) {
 
                 if(array_key_exists($ref, $visual_data['frames']) &&
                     array_key_exists('path', $visual_data['frames'][$ref])) {
-
                     // extract hash
                     $parts = explode("_", $visual_data['frames'][$ref]['path']);
                     $hash = $parts[count($parts) - 2];
 
                     $images = array();
                     $image = array();
-                    $image['path'] = $visual_data['frames'][$ref]['path'];
+                    $image['fileName'] = $visual_data['frames'][$ref]['path'];
                     $image['hash'] = $hash;
-                    $image['tag'] = 'VisuallyComplete';
+                    $image['type'] = 'VISUALLY_COMPLETE';
                     $image['taken_ms'] = $visual_data['visualComplete'];
 
                     $images[] = $image;
@@ -461,13 +460,12 @@ function AddImages($id, $testPath, &$result) {
                 $cur_value = $value;
             }
         }
-
         // extract hash
         $parts = explode("_", $cur_value['path']);
         $hash = $parts[count($parts) - 2];
 
         $image = array();
-        $image['path'] = $cur_value['path'];
+        $image['fileName'] = $cur_value['path'];
         $image['hash'] = $hash;
 
         // TODO: find the last time
