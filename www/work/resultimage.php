@@ -49,6 +49,7 @@ if (ValidateTestId($id)) {
                   $runNum = $parts[0];
                   $fileBase = $parts[count($parts) - 1];
                   $stepNum = null;
+                  $hash = $parts[2];
                   if (count($parts) > 2 && IsMultistepTestResult($testInfo)) {
                     $stepNum = $parts[count($parts) - 2];
                   }
@@ -58,10 +59,12 @@ if (ValidateTestId($id)) {
                   $path .= "/video_$runNum$cached";
                   if( !is_dir($path) )
                     mkdir($path, 0777, true);
+                  if (isset($hash)) 
+                      $hash = $hash . '_';
                   if (isset($stepNum)) {
-                    $fileName = 'frame_' . $stepNum . '_' . $fileBase;
+                    $fileName = 'frame_' . $stepNum . '_' . $hash . $fileBase;
                   } else {
-                    $fileName = 'frame_' . $fileBase;
+                    $fileName = 'frame_' . $hash . $fileBase;
                   }
                 }
               } elseif (strpos($fileName, '_ms_') !== false) {

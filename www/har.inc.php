@@ -1,5 +1,6 @@
 <?php
 require_once('page_data.inc');
+require_once('logging.inc');
 require_once('object_detail.inc');
 require_once('lib/json.php');
 
@@ -409,7 +410,55 @@ function BuildHAR(&$pageData, $allRequests, $id, $testPath, $options) {
   }
   
   $result['log']['entries'] = $entries;
+
+  AddImages($id, $testPath, $result);
   
   return $result;
+}
+
+function AddImages($id, $testPath, &$result) {
+
+    // find last page with images
+    $len = count($result['log']['pages']);
+
+    for ($i = 1; $i <= $len; $i++) {
+        $visual_data_file = $testPath . '/1.0.' . $i . ".visual.dat.gz";
+        if (gz_is_file($visual_data_file)) {
+            $visual_data = json_decode(gz_file_get_contents($visual_data_file), true);
+            $ref = strval($visual_data['visualComplete']);
+            if (array_key_exists('frames', $visual_data)) {
+                if (count($visual_data['frames']) > 0)
+                    $last_visual_data = $visual_data;
+
+                if(array_key_exists($ref, $visual_data['frames']) &&
+                    array_key_exists('path', $visual_data['frames'][$ref])) {
+
+                    // extract hash
+                    $parts = explode("_", $visual_data['frames'][$ref]['path']);
+                    $hash = $parts[count($parts) - 2];
+
+                    $images = array();
+                    $image = array();
+                    $image['fileName'] = $visual_data['frames'][$ref]['path'];
+                    $image['hash'] = $hash;
+                    $image['type'] = 'VISUALLY_COMPLETE';
+                    $image['taken_ms'] = $visual_data['visualComplete'];
+
+                    $images[] = $image;
+                    $result['log']['pages'][$i - 1]['_pageScreenshots'] = $images;
+                }
+            }
+        }
+    }
+
+    // retrieve the session result image
+    $session_result = $testPath . "/1_screen_hash.txt.gz";
+    if (gz_is_file($session_result)) {
+        $image = array();
+        $image['fileName'] = ltrim($testPath, '.') . '/1_screen.jpg';
+        $image['hash'] = gz_file_get_contents($session_result);
+
+        $result['log']['_resultScreenshot'] = $image;
+    }
 }
 ?>
