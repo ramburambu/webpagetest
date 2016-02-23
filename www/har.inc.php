@@ -1,5 +1,6 @@
 <?php
 require_once('page_data.inc');
+require_once('logging.inc');
 require_once('object_detail.inc');
 require_once('lib/json.php');
 
@@ -409,7 +410,46 @@ function BuildHAR(&$pageData, $allRequests, $id, $testPath, $options) {
   }
   
   $result['log']['entries'] = $entries;
+
+  AddImages($id, $testPath, $result);
+  logAlways($result['log']['pages'][$i - 1]['_visualCompleteImage']);
   
   return $result;
+}
+
+function AddImages($id, $testPath, &$result) {
+
+    // find last page with images
+    $len = count($result['log']['pages']);
+
+    for ($i = 1; $i <= $len; $i++) {
+        $visual_data_file = $testPath . '/' . $i . ".0.visual.dat.gz";
+        if (gz_is_file($visual_data_file)) {
+            $visual_data = json_decode(gz_file_get_contents($visual_data_file), true);
+            $ref = strval($visual_data['visualComplete']);
+            if (array_key_exists('frames', $visual_data)) {
+                if (count($visual_data['frames']) > 0)
+                    $last_visual_data = $visual_data;
+
+                if(array_key_exists($ref, $visual_data['frames']) &&
+                    array_key_exists('path', $visual_data['frames'][$ref])) {
+                    $result['log']['pages'][$i - 1]['_visualCompleteImage'] = $visual_data['frames'][$ref]['path'];
+                }
+            }
+        }
+    }
+
+    // retrieve the session result image
+    if (isset($last_visual_data)) {
+        $cur_tm = -1;
+        foreach($last_visual_data['frames'] as $tm => $value) {
+            $tm = (int)$tm;
+            if ($tm > $cur_tm) {
+                $cur_tm = $tm;
+                $cur_value = $value;
+            }
+        }
+        $result['log']['_resultImage'] = $cur_value['path'];
+    }
 }
 ?>

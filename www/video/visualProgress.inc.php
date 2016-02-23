@@ -5,6 +5,11 @@ if(extension_loaded('newrelic')) {
 }
 require_once('devtools.inc.php');
 
+function sort_timestamp($a, $b) {
+    $a = explode('_', $a);
+    $b = explode('_', $b);
+    return strcasecmp($a[count($a) - 1], $b[count($b) - 1]);
+}
 /**
 * Calculate the progress for all of the images in a given directory
 */
@@ -60,6 +65,9 @@ function GetVisualProgress($testPath, $run, $cached, $options = null, $end = nul
           $first_file = null;
           $previous_file = null;
           $frame_filespec = isset($stepNum) ? 'frame_' . $stepNum . '_' : 'frame_';
+
+          // the hash changing the natural order of each frame
+          usort($files, "sort_timestamp");
           foreach ($files as $file) {
               if (strpos($file, $frame_filespec) !== false && strpos($file,'.hist') === false) {
                   $parts = explode('_', $file);
@@ -176,7 +184,7 @@ function GetImageHistogram($image_file, $options, $histograms, $stepNum) {
     $ms = null;
     if (preg_match('/ms_(?P<ms>[0-9]+)\.(png|jpg)/i', $image_file, $matches))
       $ms = intval($matches['ms']);
-    elseif (preg_match('/frame(?:_[0-9]+)?_(?P<ms>[0-9]+)\.(png|jpg)/i', $image_file, $matches))
+    elseif (preg_match('/frame(?:_[0-9]+)?_(?:.*?)_(?P<ms>[0-9]+)\.(png|jpg)/i', $image_file, $matches))
       $ms = intval($matches['ms']) * 100;
     foreach($histograms as &$hist) {
       if (isset($hist['histogram']) && isset($hist['time']) && $hist['time'] == $ms) {
