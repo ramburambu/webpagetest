@@ -432,6 +432,7 @@ function AddImages($id, $testPath, &$result) {
 
                 if(array_key_exists($ref, $visual_data['frames']) &&
                     array_key_exists('path', $visual_data['frames'][$ref])) {
+
                     // extract hash
                     $parts = explode("_", $visual_data['frames'][$ref]['path']);
                     $hash = $parts[count($parts) - 2];
@@ -460,6 +461,7 @@ function AddImages($id, $testPath, &$result) {
                 $cur_value = $value;
             }
         }
+
         // extract hash
         $parts = explode("_", $cur_value['path']);
         $hash = $parts[count($parts) - 2];
