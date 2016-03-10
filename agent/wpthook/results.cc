@@ -229,19 +229,10 @@ void Results::SaveImages(void) {
   // save the event-based images
   CxImage image; 
 
-  if (_screen_capture.GetImage(CapturedImage::START_RENDER, image)) {
-    SaveImage(image, _file_base + IMAGE_START_RENDER, _test._image_quality, false, _test._full_size_video);
-  }
-  if (_screen_capture.GetImage(CapturedImage::DOCUMENT_COMPLETE, image))
-    SaveImage(image, _file_base + IMAGE_DOC_COMPLETE, _test._image_quality, false, _test._full_size_video);
-  if (_screen_capture.GetImage(CapturedImage::FULLY_LOADED, image)) {
-    if (_test._png_screen_shot)
-      image.Save(_file_base + IMAGE_FULLY_LOADED_PNG, CXIMAGE_FORMAT_PNG);
-    SaveImage(image, _file_base + IMAGE_FULLY_LOADED, _test._image_quality, false, _test._full_size_video);
-  }
-  if (_screen_capture.GetImage(CapturedImage::RESPONSIVE_CHECK, image)) {
-    SaveImage(image, _file_base + IMAGE_RESPONSIVE_CHECK, _test._image_quality,
-              true, _test._full_size_video);
+  if (_screen_capture.GetImage(CapturedImage::RESULT, image)) {
+    CString file_name;
+    file_name.Format(_T("%s_session_result_%s.jpg"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(image));
+    SaveImage(image, file_name, _test._image_quality, false, _test._full_size_video);
   }
 
   SaveVideo();
@@ -294,8 +285,6 @@ CString Results::GetImageSha1(CxImage &image) {
     dwStatus = GetLastError();
     WptTrace(loglevel::kError, _T("[wpthook] - CryptGetHashParam failed %d"), dwStatus);
   }
-
-  WptTrace(loglevel::kFunction, _T("[wpthook] - Image hash %s"), (LPCTSTR)hash);
 
   CryptDestroyHash(hHash);
   CryptReleaseContext(hProv, 0);

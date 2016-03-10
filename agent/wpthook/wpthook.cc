@@ -227,6 +227,9 @@ void WptHook::OnReport() {
 
   KillTimer(message_window_, TIMER_FORCE_REPORT);
   if (!reported_) {
+    // Grab session result screenshot in case this is the end of the measurement
+    test_state_.GrabResultScreenshot();
+
     reported_ = true;
     if (test_._combine_steps) {
       results_.Save();
