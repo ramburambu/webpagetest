@@ -258,6 +258,10 @@ void WptHook::Report() {
 }
 
 void WptHook::Save(bool merge) {
+  // Grab session result screenshot in case this is the end of the measurement
+  test_state_.GrabResultScreenshot();
+  WptTrace(loglevel::kProcess, _T("[wpthook] WptHook::Save()\n"));
+
   if (!reported_) {
     reported_ = true;
     results_.Save(merge);

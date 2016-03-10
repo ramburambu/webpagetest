@@ -51,10 +51,12 @@ static const TCHAR * PROGRESS_DATA_FILE = _T("_progress.csv");
 static const TCHAR * STATUS_MESSAGE_DATA_FILE = _T("_status.txt");
 static const TCHAR * IMAGE_DOC_COMPLETE = _T("_screen_doc.jpg");
 static const TCHAR * IMAGE_FULLY_LOADED = _T("_screen.jpg");
+static const TCHAR * IMAGE_RESULT = _T("_screen.jpg");
 static const TCHAR * IMAGE_FULLY_LOADED_PNG = _T("_screen.png");
 static const TCHAR * IMAGE_START_RENDER = _T("_screen_render.jpg");
 static const TCHAR * IMAGE_RESPONSIVE_CHECK = _T("_screen_responsive.jpg");
 static const TCHAR * CONSOLE_LOG_FILE = _T("_console_log.json");
+static const TCHAR * RESULT_SCREENSHOT_HASH = _T("_screen_hash.txt");
 static const TCHAR * TIMED_EVENTS_FILE = _T("_timed_events.json");
 static const TCHAR * CUSTOM_METRICS_FILE = _T("_metrics.json");
 static const TCHAR * TRACE_FILE = _T("_trace.json");
@@ -230,9 +232,10 @@ void Results::SaveImages(void) {
   CxImage image; 
 
   if (_screen_capture.GetImage(CapturedImage::RESULT, image)) {
-    CString file_name;
-    file_name.Format(_T("%s_session_result_%s.jpg"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(image));
-    SaveImage(image, file_name, _test._image_quality, false, _test._full_size_video);
+    SaveImage(image, _file_base + IMAGE_RESULT, _test._image_quality, false, _test._full_size_video);
+
+    CStringA hash = (LPCTSTR)GetImageSha1(image);
+    SaveResultScreenshotHash(hash);
   }
 
   SaveVideo();
@@ -1411,6 +1414,20 @@ void Results::SaveConsoleLog(void) {
     if (file != INVALID_HANDLE_VALUE) {
       DWORD written;
       WriteFile(file, (LPCSTR)log, log.GetLength(), &written, 0);
+      CloseHandle(file);
+    }
+  }
+}
+
+/*-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------*/
+void Results::SaveResultScreenshotHash(CStringA& hash) {
+  if (hash.GetLength()) {
+    HANDLE file = CreateFile(_file_base + RESULT_SCREENSHOT_HASH, GENERIC_WRITE, 0,
+      NULL, CREATE_ALWAYS, 0, 0);
+    if (file != INVALID_HANDLE_VALUE) {
+      DWORD written;
+      WriteFile(file, (LPCSTR)hash, hash.GetLength(), &written, 0);
       CloseHandle(file);
     }
   }

@@ -109,6 +109,7 @@ private:
   CStringA FormatTime(LARGE_INTEGER t);
   void SaveResponseBodies(void);
   void SaveConsoleLog(void);
+  void SaveResultScreenshotHash(CStringA& hash);
   void SaveTimedEvents(void);
   void SaveCustomMetrics(void);
   void SaveHistogram(CStringA& histogram, CString file);
