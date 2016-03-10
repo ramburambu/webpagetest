@@ -452,27 +452,13 @@ function AddImages($id, $testPath, &$result) {
     }
 
     // retrieve the session result image
-    if (isset($last_visual_data)) {
-        $cur_tm = -1;
-        foreach($last_visual_data['frames'] as $tm => $value) {
-            $tm = (int)$tm;
-            if ($tm > $cur_tm) {
-                $cur_tm = $tm;
-                $cur_value = $value;
-            }
-        }
-
-        // extract hash
-        $parts = explode("_", $cur_value['path']);
-        $hash = $parts[count($parts) - 2];
-
+    $session_result = $testPath . "/1_screen_hash.txt.gz";
+    if (gz_is_file($session_result)) {
         $image = array();
-        $image['fileName'] = $cur_value['path'];
-        $image['hash'] = $hash;
+        $image['fileName'] = ltrim($testPath, '.') . '/1_screen.jpg';
+        $image['hash'] = gz_file_get_contents($session_result);
 
-        // TODO: find the last time
         $result['log']['_resultScreenshot'] = $image;
     }
-
 }
 ?>
