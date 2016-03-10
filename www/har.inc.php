@@ -422,7 +422,7 @@ function AddImages($id, $testPath, &$result) {
     $len = count($result['log']['pages']);
 
     for ($i = 1; $i <= $len; $i++) {
-        $visual_data_file = $testPath . '/' . $i . ".0.visual.dat.gz";
+        $visual_data_file = $testPath . '/1.0.' . $i . ".visual.dat.gz";
         if (gz_is_file($visual_data_file)) {
             $visual_data = json_decode(gz_file_get_contents($visual_data_file), true);
             $ref = strval($visual_data['visualComplete']);
