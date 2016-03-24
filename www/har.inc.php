@@ -418,47 +418,82 @@ function BuildHAR(&$pageData, $allRequests, $id, $testPath, $options) {
 
 function AddImages($id, $testPath, &$result) {
 
-    // find last page with images
-    $len = count($result['log']['pages']);
-
-    for ($i = 1; $i <= $len; $i++) {
-        $visual_data_file = $testPath . '/1.0.' . $i . ".visual.dat.gz";
-        if (gz_is_file($visual_data_file)) {
-            $visual_data = json_decode(gz_file_get_contents($visual_data_file), true);
-            $ref = strval($visual_data['visualComplete']);
-            if (array_key_exists('frames', $visual_data)) {
-                if (count($visual_data['frames']) > 0)
-                    $last_visual_data = $visual_data;
-
-                if(array_key_exists($ref, $visual_data['frames']) &&
-                    array_key_exists('path', $visual_data['frames'][$ref])) {
-
-                    // extract hash
-                    $parts = explode("_", $visual_data['frames'][$ref]['path']);
-                    $hash = $parts[count($parts) - 2];
-
-                    $images = array();
-                    $image = array();
-                    $image['fileName'] = $visual_data['frames'][$ref]['path'];
-                    $image['hash'] = $hash;
-                    $image['type'] = 'VISUALLY_COMPLETE';
-                    $image['taken_ms'] = $visual_data['visualComplete'];
-
-                    $images[] = $image;
-                    $result['log']['pages'][$i - 1]['_pageScreenshots'] = $images;
-                }
-            }
+    // retrieve custom screenshots labels from the output.json
+    $output_file = $testPath . "/output.json.gz";
+    $labels = array();
+    if (gz_is_file($output_file)) {
+        $output = json_decode(gz_file_get_contents($output_file), true);
+        if (isset($output['screenshots'])) {
+            $labels = $output['screenshots'];
         }
     }
+    $labelIndex = 0;
+    $labelsCount = count($labels);
 
-    // retrieve the session result image
-    $session_result = $testPath . "/1_screen_hash.txt.gz";
-    if (gz_is_file($session_result)) {
-        $image = array();
-        $image['fileName'] = ltrim($testPath, '.') . '/1_screen.jpg';
-        $image['hash'] = gz_file_get_contents($session_result);
+    $files = scandir($testPath);
+    foreach ($files as $file) { 
+        $matches = array();
 
-        $result['log']['_resultScreenshot'] = $image;
+        // visually complete
+        if (preg_match('/^(?P<step>\d+)_visuallycomplete_(?P<hash>[a-f0-9]{40})\.jpg$/', $file, $matches) == 1) {
+            $page = intval($matches['step']) - 1;
+            if (isset($result['log']['pages'][$page]['_pageScreenshots'])) {
+                $images = $result['log']['pages'][$page]['_pageScreenshots'];
+            } else {
+                $images = array();
+            }
+            $image = array();
+            $image['fileName'] = ltrim($testPath, '.') . '/' . basename($file);
+            $image['hash'] = $matches['hash'];
+            $image['type'] = 'VISUALLY_COMPLETE';
+            $image['taken_ms'] = $result['log']['pages'][$page]['_visualComplete'];
+
+            $images[] = $image;
+            $result['log']['pages'][$page]['_pageScreenshots'] = $images;
+        }
+
+        // Custom image
+        if (preg_match('/^(?P<timestamp>\d+)_screenshot_(?P<hash>[a-f0-9]{40})\.jpg$/', $file, $matches) == 1) {
+            $time = intval($matches['timestamp']);
+            $page = pageFromTimestamp($result, $time);
+            if (isset($result['log']['pages'][$page]['_pageScreenshots'])) {
+                $images = $result['log']['pages'][$page]['_pageScreenshots'];
+            } else {
+                $images = array();
+            }
+            $image = array();
+            $image['fileName'] = ltrim($testPath, '.') . '/' . basename($file);
+            $image['hash'] = $matches['hash'];
+            $image['type'] = 'SCRIPT';
+            $image['taken_ms'] = $time - $result['log']['pages'][$page]['_date'] * 1000;
+
+            if ($labelIndex < $labelsCount) {
+                $image['label'] = $labels[$labelIndex];
+                ++$labelIndex;
+            }
+
+            $images[] = $image;
+            $result['log']['pages'][$page]['_pageScreenshots'] = $images;
+        }
+
+        // result image
+        if (preg_match('/^result_(?P<hash>[a-f0-9]{40})\.jpg$/', $file, $matches) == 1) {
+            $image = array();
+            $image['fileName'] = ltrim($testPath, '.') . '/' . basename($file);
+            $image['hash'] = $matches['hash'];
+
+            $result['log']['_resultScreenshot'] = $image;
+        }
+    }
+}
+
+function pageFromTimestamp(&$result, $time) {
+    $pages = $result['log']['pages'];
+
+    for ($i = count($pages) - 1; $i >= 0; $i--) {
+        if ($pages['_date'] * 1000 <= $time) {
+            return $i;
+        }
     }
 }
 ?>

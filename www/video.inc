@@ -19,8 +19,6 @@ function MoveVideoFiles($testPath)
                 if( count($parts) )
                 {
                     $run = (int)$parts[0];
-                    $hash = $parts[2];
-
                     if( $run )
                     {
                         $destDir = $testPath . "/video_$run";
@@ -31,7 +29,7 @@ function MoveVideoFiles($testPath)
                             mkdir($destDir, 0777, true);
                         
                         $fileBase = $parts[count($parts) - 1];
-                        $dest = "$destDir/frame_" . "$hash" . "_" . $fileBase;
+                        $dest = "$destDir/frame_$fileBase";
                         rename($src, $dest);
                     }
                 }
