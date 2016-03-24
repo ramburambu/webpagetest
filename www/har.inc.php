@@ -419,17 +419,11 @@ function BuildHAR(&$pageData, $allRequests, $id, $testPath, $options) {
 function AddImages($id, $testPath, &$result) {
 
     // retrieve custom screenshots labels from the output.json
-    $output_file = $testPath . "/output.json.gz";
-    $labels = array();
-    if (gz_is_file($output_file)) {
-        $output = json_decode(gz_file_get_contents($output_file), true);
-        if (isset($output['screenshots'])) {
-            $labels = $output['screenshots'];
-        }
-    }
+    $labels = getCustomScreenshotsLabels($testPath);
     $labelIndex = 0;
     $labelsCount = count($labels);
 
+    // scan all images in result dir
     $files = scandir($testPath);
     foreach ($files as $file) { 
         $matches = array();
@@ -470,7 +464,10 @@ function AddImages($id, $testPath, &$result) {
             if ($labelIndex < $labelsCount) {
                 $image['label'] = $labels[$labelIndex];
                 ++$labelIndex;
+            } else {
+                $image['label'] = "";
             }
+
 
             $images[] = $image;
             $result['log']['pages'][$page]['_pageScreenshots'] = $images;
@@ -495,5 +492,32 @@ function pageFromTimestamp(&$result, $time) {
             return $i;
         }
     }
+}
+
+function getCustomScreenshotsLabels($testPath) {
+    $output_file = $testPath . "/output.json.gz";
+    $labels = array();
+    if (gz_is_file($output_file)) {
+        $output = json_decode(gz_file_get_contents($output_file), true);
+        if (isset($output['screenshots'])) {
+            $labels_obj = $output['screenshots'];
+            $labels_obj_count = count($labels_obj);
+
+            if ($labels_obj_count > 0) {
+                $len = intval($labels_obj[$labels_obj_count - 1]['id']) + 1;
+
+                // set all labels to empty strings
+                $labels = array_pad(array(), $len, "");
+
+                // set label
+                foreach ($labels_obj as $l) {
+                    $labels[intval($l['id'])] = preg_replace('/\\.[^.\\s]{3,4}$/', '', $l['fileName']);
+                }
+            }
+            
+        }
+    }
+
+    return $labels;
 }
 ?>
