@@ -52,6 +52,7 @@ static const TCHAR * STATUS_MESSAGE_DATA_FILE = _T("_status.txt");
 static const TCHAR * IMAGE_DOC_COMPLETE = _T("_screen_doc.jpg");
 static const TCHAR * IMAGE_FULLY_LOADED = _T("_screen.jpg");
 static const TCHAR * IMAGE_RESULT = _T("_screen.jpg");
+static const TCHAR * IMAGE_RESULT_PNG = _T("result.png");
 static const TCHAR * IMAGE_FULLY_LOADED_PNG = _T("_screen.png");
 static const TCHAR * IMAGE_START_RENDER = _T("_screen_render.jpg");
 static const TCHAR * IMAGE_RESPONSIVE_CHECK = _T("_screen_responsive.jpg");
@@ -232,72 +233,18 @@ void Results::SaveImages(void) {
   CxImage image; 
 
   if (_screen_capture.GetImage(CapturedImage::RESULT, image)) {
+    // for lagacy WPT server UI
     SaveImage(image, _file_base + IMAGE_RESULT, _test._image_quality, false, _test._full_size_video);
 
-    CStringA hash = (LPCTSTR)GetImageSha1(image);
-    SaveResultScreenshotHash(hash);
+    SaveImage(image, _test._screenshots_dir + IMAGE_RESULT_PNG, _test._image_quality, false, _test._full_size_video);
   }
 
   SaveVideo();
 }
 
-CString Results::GetImageSha1(CxImage &image) {
-  HCRYPTPROV hProv = 0;
-  HCRYPTHASH hHash = 0;
-  BYTE rgbHash[SHALEN];
-  DWORD cbHash = 0;
-  CHAR rgbDigits[] = "0123456789abcdef";
-  CString hash = ""; // 40 hexadecimal characters
-  DWORD dwStatus;
-
-  if (!CryptAcquireContext(&hProv,
-    NULL,
-    NULL,
-    PROV_RSA_FULL,
-    CRYPT_VERIFYCONTEXT))
-  {
-    dwStatus = GetLastError();
-    WptTrace(loglevel::kError, _T("[wpthook] - CryptAcquireContext failed %d"), dwStatus);
-    return "";
-  }
-
-  if (!CryptCreateHash(hProv, CALG_SHA1, 0, 0, &hHash)) {
-    dwStatus = GetLastError();
-    WptTrace(loglevel::kError, _T("[wpthook] - CryptCreateHash failed %d"), dwStatus);
-    CryptReleaseContext(hProv, 0);
-    return "";
-  }
-
-  if (!CryptHashData(hHash, image.GetBits(), image.GetSize(), 0)) {
-    dwStatus = GetLastError();
-    WptTrace(loglevel::kError, _T("[wpthook] - CryptHashData failed %d"), dwStatus);
-
-    CryptReleaseContext(hProv, 0);
-    CryptDestroyHash(hHash);
-    return "";
-  }
-
-  cbHash = SHALEN;
-  if (CryptGetHashParam(hHash, HP_HASHVAL, rgbHash, &cbHash, 0)) {
-    for (DWORD i = 0; i < cbHash; i++)
-    {
-      hash += rgbDigits[rgbHash[i] & 0xf];
-      hash += rgbDigits[rgbHash[i] >> 4];
-    }
-  } else {
-    dwStatus = GetLastError();
-    WptTrace(loglevel::kError, _T("[wpthook] - CryptGetHashParam failed %d"), dwStatus);
-  }
-
-  CryptDestroyHash(hHash);
-  CryptReleaseContext(hProv, 0);
-
-  return hash;
-}
-
 /*-----------------------------------------------------------------------------
 -----------------------------------------------------------------------------*/
-void Results::SaveVideo(void) {
+void Results::SaveVideo() {
   _screen_capture.Lock();
   CStringA histograms = "[";
   DWORD histogram_count = 0;
@@ -332,13 +279,11 @@ void Results::SaveVideo(void) {
             if (_test._video) {
               _visually_complete.QuadPart = image._capture_time.QuadPart;
               if (!_test.IsServerMultistepCapable()) {
-                file_name.Format(_T("%s_progress_%s_%04d.jpg"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img),
-                  image_time);
+                file_name.Format(_T("progress_%04d.png"), image_time);
               } else {
-                file_name.Format(_T("%s_progress_%s_%d_%04d.jpg"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img),
-                  reported_step_, image_time);
+                file_name.Format(_T("progress_%d_%04d.png"), reported_step_, image_time);
               }
-              SaveImage(*img, file_name, _test._image_quality, false, _test._full_size_video);
+              SaveImage(*img, _test._progress_dir + file_name, _test._image_quality, false, _test._full_size_video);
             }
           }
         } else {
@@ -350,11 +295,11 @@ void Results::SaveVideo(void) {
           histogram = GetHistogramJSON(*img);
           if (_test._video) {
             if (!_test.IsServerMultistepCapable()) {
-              file_name.Format(_T("%s_progress_%s_0000.jpg"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img));
+              file_name.Format(_T("progress_0000.png"));
             } else {
-              file_name.Format(_T("%s_progress_%s_%d_0000.jpg"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img), reported_step_);
+              file_name.Format(_T("progress_%d_0000.png"), reported_step_);
             }
-            SaveImage(*img, file_name, _test._image_quality, false, _test._full_size_video);
+            SaveImage(*img, _test._progress_dir + file_name, _test._image_quality, false, _test._full_size_video);
           }
         }
 
@@ -371,11 +316,10 @@ void Results::SaveVideo(void) {
           histogram_count++;
           if (_test._video) {
             if (!_test.IsServerMultistepCapable()) {
-              file_name.Format(_T("%s_progress_%s_%04d.hist"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img),
+              file_name.Format(_T("%s_progress_%04d.hist"), (LPCTSTR)_file_base,
                 image_time);
             } else {
-              file_name.Format(_T("%s_progress_%s_%d_%04d.hist"), (LPCTSTR)_file_base, (LPCTSTR)GetImageSha1(*img),
-                reported_step_, image_time);
+              file_name.Format(_T("%s_progress_%d_%04d.hist"), (LPCTSTR)_file_base, reported_step_, image_time);
             }
             SaveHistogram(histogram, file_name);
           }
@@ -447,15 +391,22 @@ bool Results::ImagesAreDifferent(CxImage * img1, CxImage* img2) {
 void Results::SaveImage(CxImage& image, CString file, BYTE quality,
                         bool force_small, bool _full_size_video) {
   if (image.IsValid()) {
+    WptTrace(loglevel::kFunction, _T("[wpthook] - Save image %s"), file);
+
     CxImage img(image);
     if (!_full_size_video)
       if (force_small || (img.GetWidth() > 600 && img.GetHeight() > 600))
         img.Resample2(img.GetWidth() / 2, img.GetHeight() / 2);
 
-    img.SetCodecOption(8, CXIMAGE_FORMAT_JPG);  // optimized encoding
-    img.SetCodecOption(16, CXIMAGE_FORMAT_JPG); // progressive
-    img.SetJpegQuality((BYTE)quality);
-    img.Save(file, CXIMAGE_FORMAT_JPG);
+    if (file.Right(4) == _T(".png")) {
+      img.Save(file, CXIMAGE_FORMAT_PNG);
+    } else if (file.Right(4) == _T(".jpg")) {
+      img.SetCodecOption(8, CXIMAGE_FORMAT_JPG);  // optimized encoding
+      img.SetCodecOption(16, CXIMAGE_FORMAT_JPG); // progressive
+      img.SetJpegQuality((BYTE)quality);
+      img.Save(file, CXIMAGE_FORMAT_JPG);
+    }
+
   }
 }
 
