@@ -488,7 +488,7 @@ function pageFromTimestamp(&$result, $time) {
     $pages = $result['log']['pages'];
 
     for ($i = count($pages) - 1; $i >= 0; $i--) {
-        if ($pages['_date'] * 1000 <= $time) {
+        if ($pages[$i]['_date'] * 1000 <= $time) {
             return $i;
         }
     }
