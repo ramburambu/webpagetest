@@ -331,7 +331,7 @@ bool WptDriverCore::BrowserTest(WptTestDriver& test, WebBrowser &browser) {
   }
 
   // process images
-  //RunVisuallyComplete(test);
+  RunVisuallyComplete(test);
   RunImageHash(test);
 
   WptTrace(loglevel::kFunction, 
@@ -379,7 +379,7 @@ bool WptDriverCore::RunVisuallyComplete(WptTestDriver& test) {
   _settings._imagetools_command.Replace(_T("%RESULTDIR%"), test._directory);
 
   CString cmd;
-  cmd.Format(_T("%s visuallycomplete -s %s -d %s"), _settings._imagetools_command, test._progress_dir, test._directory);
+  cmd.Format(_T("%s visuallycomplete -s %s -d %s"), _settings._imagetools_command, test._progress_dir, test._screenshots_dir);
   _status.Set(_T("Launching: %s"), cmd);
   if (!CreateProcess(NULL, cmd.GetBuffer(), NULL, NULL, TRUE, 0, NULL,
     NULL, &si, &it_info)) {
