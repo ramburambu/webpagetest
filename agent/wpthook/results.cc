@@ -57,7 +57,6 @@ static const TCHAR * IMAGE_FULLY_LOADED_PNG = _T("_screen.png");
 static const TCHAR * IMAGE_START_RENDER = _T("_screen_render.jpg");
 static const TCHAR * IMAGE_RESPONSIVE_CHECK = _T("_screen_responsive.jpg");
 static const TCHAR * CONSOLE_LOG_FILE = _T("_console_log.json");
-static const TCHAR * RESULT_SCREENSHOT_HASH = _T("_screen_hash.txt");
 static const TCHAR * TIMED_EVENTS_FILE = _T("_timed_events.json");
 static const TCHAR * CUSTOM_METRICS_FILE = _T("_metrics.json");
 static const TCHAR * TRACE_FILE = _T("_trace.json");
@@ -65,7 +64,6 @@ static const TCHAR * TRACE_NETLOG_FILE = _T("_trace_netlog.json");
 static const TCHAR * CUSTOM_RULES_DATA_FILE = _T("_custom_rules.json");
 static const DWORD RIGHT_MARGIN = 25;
 static const DWORD BOTTOM_MARGIN = 25;
-static const short SHALEN = 20;
 
 
 /*-----------------------------------------------------------------------------
@@ -303,6 +301,7 @@ void Results::SaveVideo() {
           }
         }
 
+
         if (!histogram.IsEmpty()) {
           if (histogram_count)
             histograms += ", ";
@@ -336,7 +335,7 @@ void Results::SaveVideo() {
 
   if (last_image)
     delete last_image;
-
+  
   if (histogram_count > 1) {
     histograms += "]";
     TCHAR path[MAX_PATH];
@@ -361,29 +360,20 @@ void Results::SaveVideo() {
 /*-----------------------------------------------------------------------------
 -----------------------------------------------------------------------------*/
 bool Results::ImagesAreDifferent(CxImage * img1, CxImage* img2) {
-  bool different = false;
-  if (img1 && img2 && img1->GetWidth() == img2->GetWidth() && 
-      img1->GetHeight() == img2->GetHeight() && 
-      img1->GetBpp() == img2->GetBpp()) {
-      if (img1->GetBpp() >= 15) {
-        DWORD pixel_bytes = 3;
-        if (img1->GetBpp() == 32)
-          pixel_bytes = 4;
-        DWORD width = max(img1->GetWidth() - RIGHT_MARGIN, 0);
-        DWORD height = img1->GetHeight();
-        DWORD row_bytes = img1->GetEffWidth();
-        DWORD row_length = width * (DWORD)(row_bytes / width);
-        for (DWORD row = BOTTOM_MARGIN; row < height && !different; row++) {
-          BYTE * r1 = img1->GetBits(row);
-          BYTE * r2 = img2->GetBits(row);
-          if (r1 && r2 && memcmp(r1, r2, row_length))
-            different = true;
-        }
-      }
+  if (img1 && img2 && img1->GetWidth() == img2->GetWidth() && img1->GetHeight() == img2->GetHeight()) {
+    DWORD width = max(img1->GetWidth() - RIGHT_MARGIN, 0);
+    DWORD height = img1->GetHeight();
+    DWORD row_bytes = img1->GetEffWidth();
+    DWORD row_length = width * (DWORD)(row_bytes / width);
+    for (DWORD row = BOTTOM_MARGIN; row < height; row++) {
+      BYTE * r1 = img1->GetBits(row);
+      BYTE * r2 = img2->GetBits(row);
+      if (r1 && r2 && memcmp(r1, r2, row_length))
+        return true;
+    }
   }
-  else
-    different = true;
-  return different;
+ 
+  return false;
 }
 
 /*-----------------------------------------------------------------------------
@@ -399,6 +389,7 @@ void Results::SaveImage(CxImage& image, CString file, BYTE quality,
         img.Resample2(img.GetWidth() / 2, img.GetHeight() / 2);
 
     if (file.Right(4) == _T(".png")) {
+      img.SetCodecOption(2, CXIMAGE_FORMAT_PNG);  // no compression
       img.Save(file, CXIMAGE_FORMAT_PNG);
     } else if (file.Right(4) == _T(".jpg")) {
       img.SetCodecOption(8, CXIMAGE_FORMAT_JPG);  // optimized encoding
@@ -1365,20 +1356,6 @@ void Results::SaveConsoleLog(void) {
     if (file != INVALID_HANDLE_VALUE) {
       DWORD written;
       WriteFile(file, (LPCSTR)log, log.GetLength(), &written, 0);
-      CloseHandle(file);
-    }
-  }
-}
-
-/*-----------------------------------------------------------------------------
------------------------------------------------------------------------------*/
-void Results::SaveResultScreenshotHash(CStringA& hash) {
-  if (hash.GetLength()) {
-    HANDLE file = CreateFile(_file_base + RESULT_SCREENSHOT_HASH, GENERIC_WRITE, 0,
-      NULL, CREATE_ALWAYS, 0, 0);
-    if (file != INVALID_HANDLE_VALUE) {
-      DWORD written;
-      WriteFile(file, (LPCSTR)hash, hash.GetLength(), &written, 0);
       CloseHandle(file);
     }
   }
