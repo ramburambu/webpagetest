@@ -64,6 +64,7 @@ static const TCHAR * TRACE_NETLOG_FILE = _T("_trace_netlog.json");
 static const TCHAR * CUSTOM_RULES_DATA_FILE = _T("_custom_rules.json");
 static const DWORD RIGHT_MARGIN = 25;
 static const DWORD BOTTOM_MARGIN = 25;
+static const LONG MAX_SAVE_IMAGE_TIME = 10 * 1000;
 
 
 /*-----------------------------------------------------------------------------
@@ -146,7 +147,6 @@ void Results::Save(bool merge) {
         OptimizationChecks checks(_requests, _test_state, _test, _dns);
         // checks.Check();
         base_page_CDN_ = checks._base_page_CDN;
-        SaveImages();
         SaveProgressData();
         SaveStatusMessages();
         SavePageData(checks);
@@ -158,6 +158,9 @@ void Results::Save(bool merge) {
         _trace_netlog.Write(_file_base + TRACE_NETLOG_FILE);
       }
       SaveRequests(merge);
+      if (!merge) {
+        SaveImages();
+      }
     }
     if (shared_result == -1 || shared_result == 0 || shared_result == 99999)
       shared_result = _test_state._test_result;
@@ -241,8 +244,19 @@ void Results::SaveImages(void) {
 }
 
 /*-----------------------------------------------------------------------------
+ Save all images for the video. When the browser's process is overloaded, saving
+ images can be time consuming. To avoid extending too much a session, the save
+ is limited to 10s
 -----------------------------------------------------------------------------*/
 void Results::SaveVideo() {
+  LARGE_INTEGER ElapsedMs;
+  LARGE_INTEGER StartingTime;
+  LARGE_INTEGER EndingTime;
+  QueryPerformanceCounter(&StartingTime);
+  LARGE_INTEGER Frequency;
+
+  QueryPerformanceFrequency(&Frequency);
+
   _screen_capture.Lock();
   CStringA histograms = "[";
   DWORD histogram_count = 0;
@@ -330,6 +344,17 @@ void Results::SaveVideo() {
       }
       else
         delete img;
+    }
+
+    QueryPerformanceCounter(&EndingTime);
+    ElapsedMs.QuadPart = EndingTime.QuadPart - StartingTime.QuadPart;
+
+    ElapsedMs.QuadPart *= 1000;
+    ElapsedMs.QuadPart /= Frequency.QuadPart;
+
+    if (ElapsedMs.QuadPart >= MAX_SAVE_IMAGE_TIME) {
+      WptTrace(loglevel::kFunction, _T("[wpthook] - Results::SaveVideo() interrupted. Exceeding timeout"));
+      break;
     }
   }
 
