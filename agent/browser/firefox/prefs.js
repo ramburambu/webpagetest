@@ -73,3 +73,11 @@ user_pref("devtools.debugger.remote-enabled", true);
 user_pref("dom.ipc.plugins.flash.disable-protected-mode", true);
 //Fix for CORE-39213
 user_pref("network.http.spdy.enabled", false);
+//Fix for CORE-68947
+user_pref("app.update.auto", false);
+user_pref("app.update.checkInstallTime", false);
+user_pref("app.update.staging.enabled", false);
+user_pref("browser.safebrowsing.downloads.enabled", false);
+user_pref("browser.safebrowsing.downloads.remote.enabled", false);
+user_pref("privacy.trackingprotection.pbmode.enabled", false);
+user_pref("services.sync.enabled", false);
