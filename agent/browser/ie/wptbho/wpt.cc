@@ -312,9 +312,9 @@ void Wpt::OnNavigateError(DWORD error) {
     DWORD code = error;
 
     switch (error) {
+    case INET_E_RESOURCE_NOT_FOUND: // DNS resolution failed or connection failure
     case INET_E_INVALID_URL:
     case INET_E_NO_SESSION:
-    case INET_E_RESOURCE_NOT_FOUND:
     case INET_E_OBJECT_NOT_FOUND:
     case INET_E_DATA_NOT_AVAILABLE:
     case INET_E_DOWNLOAD_FAILURE:
