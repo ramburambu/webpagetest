@@ -642,6 +642,11 @@ void WinInetHook::SetHeaders(HINTERNET hRequest, bool also_add) {
   // Only modify headers in wininet for https requests.  Other requests will
   // be processed normally in the socket hooks.
   if (secure) {
+    /* Always add the bt correlation header. This is a workaround for the fact that also_add prevents the headers
+       from _test.GetHeaderstToAdd to be added correctly for SSL websites */
+    CString appdBtHeader = "appdynamicssnapshotenabled: true\r\n";
+    HttpAddRequestHeaders(hRequest, appdBtHeader, appdBtHeader.GetLength(), HTTP_ADDREQ_FLAG_ADD | HTTP_ADDREQ_FLAG_REPLACE);
+
     CAtlList<CString> headers;
     if (_test.GetHeadersToSet(host, headers)) {
       POSITION pos = headers.GetHeadPosition();
