@@ -2,16 +2,6 @@
 require_once('./common_lib.inc');
 require_once('./plugins.php.inc');
 
-// if any query parameter includes a .., exit right away - likely a hack attempt
-foreach($_REQUEST as $key => $val) {
-    if (is_string($val) && strlen($val) && strpos($val, '/../') !== false) {
-        header('HTTP/1.1 403 Forbidden');
-        echo "<html><body>Sorry, the request was blocked, please contact us for details";
-        echo "<br>" . htmlspecialchars($key) . " - " . htmlspecialchars($val) . "</body></html>";
-        exit(0);
-    }
-}
-
 // shared initializiation/loading code
 set_time_limit(300);
 if (!array_key_exists('debug', $_REQUEST) && (!isset($debug) || !$debug)) {
