@@ -6,6 +6,7 @@ Wpt* global_wpt = NULL;
 
 #define UWM_TASK WM_APP + 1
 const DWORD TASK_INTERVAL = 200;
+const DWORD POLL_INTERVAL = 1000;
 static const TCHAR * GLOBAL_TESTING_MUTEX = _T("Global\\wpt_testing_active");
 static const TCHAR * HOOK_DLL = _T("wpthook.dll");
 
@@ -73,7 +74,7 @@ LPOLESTR GET_USER_TIMINGS = L"wptGetUserTimings";
 LPOLESTR GET_NAV_TIMINGS = L"wptGetNavTimings";
 LPOLESTR GET_LOAD_EVENT_END_TIMING = L"wptGetLoadEventEndTiming";
 
-int MAX_ONLOAD_WAIT = 20; // 4s
+int MAX_ONLOAD_WAIT = 4; // 4s
 
 
 /*-----------------------------------------------------------------------------
@@ -189,7 +190,7 @@ void Wpt::Start(void) {
   if (!_task_timer && _message_window) {
     _webdriver_mode = _wpt_interface.IsWebdriverMode();
     _task_thread = (HANDLE)_beginthreadex(0, 0, ::TaskThreadProc, this, 0, 0);
-    _task_timer = SetTimer(_message_window, 1, TASK_INTERVAL, NULL);
+    _task_timer = SetTimer(_message_window, 1, POLL_INTERVAL, NULL);
     if (_webdriver_mode) {
       AtlTrace(_T("[wptbho] - Running in webdriver mode"));
       _active = true;
