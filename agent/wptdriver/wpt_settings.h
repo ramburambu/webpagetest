@@ -128,6 +128,7 @@ public:
   CString _clients_directory;
   BOOL _requireValidCertificate;
   CString _clientCertCommonName;
+  CString _wpt_directory;
 
   BrowserSettings _browser;
   SoftwareUpdate _software_update;

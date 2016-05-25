@@ -182,7 +182,8 @@ void WptDriverCore::WorkThread(void) {
     _installing = false;
     _status.Set(_T("Checking for work..."));
     WptTestDriver test(_settings._timeout * SECONDS_TO_MS, has_gpu_);
-    if (_webpagetest.GetTest(test)) {
+    bool pause = NeedsPause();
+    if (!pause && _webpagetest.GetTest(test)) {
       PreTest();
       test._run = test._specific_run ? test._specific_run : 1;
       _status.Set(_T("Starting test..."));
@@ -246,7 +247,11 @@ void WptDriverCore::WorkThread(void) {
       ReleaseMutex(_testing_mutex);
     } else {
       ReleaseMutex(_testing_mutex);
-      _status.Set(_T("Waiting for work..."));
+      if (pause) {
+          _status.Set(_T("WptDriver paused..."));
+      } else {
+          _status.Set(_T("Waiting for work..."));
+      }
       int delay = _settings._polling_delay * SECONDS_TO_MS;
       while (!_exit && delay > 0) {
         Sleep(100);
@@ -1076,15 +1081,19 @@ bool WptDriverCore::NeedsReboot() {
 }
 
 bool WptDriverCore::NeedsMaintenance() {
-  TCHAR path[4096];
-  CString localAppDataDir;
-  if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE,
-    NULL, SHGFP_TYPE_CURRENT, path))) {
-    localAppDataDir = path;
-    localAppDataDir += _T("\\appdynamics-maintenance.dat");
-    if (PathFileExists(localAppDataDir.GetBuffer())) {
-      _exit = true;
-    }
-  }
+  CString path(_settings._wpt_directory);
+
+  path += _T("\\shutdown");
+
+  _exit = PathFileExists(path.GetBuffer());
+
   return _exit;
+}
+
+bool WptDriverCore::NeedsPause() {
+  CString path(_settings._wpt_directory);
+
+  path += _T("\\pause");
+
+  return PathFileExists(path.GetBuffer());
 }
