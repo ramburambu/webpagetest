@@ -120,14 +120,19 @@ bool WptSettings::Load(void) {
   TCHAR iniFile[MAX_PATH];
   TCHAR logFile[MAX_PATH];
   iniFile[0] = 0;
-  GetModuleFileName(NULL, iniFile, _countof(iniFile));
-  lstrcpy( PathFindFileName(iniFile), _T("wptdriver.ini") );
-  _ini_file = iniFile;
-  lstrcpy(logFile, iniFile);
+
+  GetModuleFileName(NULL, buff, _countof(buff));
+  *PathFindFileName(buff) = NULL;
+  _wpt_directory = buff;
+  _wpt_directory.Trim(_T("\\"));
+
+  _ini_file.Format(_T("%s\\%s"), _wpt_directory, _T("wptdriver.ini"));
+  lstrcpy(iniFile, _ini_file.GetBuffer());
 
   // setting logs
-  lstrcpy(PathFindFileName(logFile), _T("wpt.log"));
-  _logFile = logFile;
+  _logFile.Format(_T("%s\\%s"), _wpt_directory, _T("wpt.log"));
+  lstrcpy(logFile, _logFile.GetBuffer());
+
   global_logfile_handle = CreateFile(logFile, FILE_APPEND_DATA, FILE_SHARE_WRITE | FILE_SHARE_READ,
     NULL, OPEN_ALWAYS, FILE_FLAG_WRITE_THROUGH, 0);
   if (logfile_handle == INVALID_HANDLE_VALUE) {
