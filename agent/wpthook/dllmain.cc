@@ -111,8 +111,15 @@ bool IsCorrectBrowserProcess(LPCTSTR exe) {
   bool ok = false;
 
   if (shared_webdriver_mode) {
-    if (!lstrcmpi(exe, _T("chrome.exe"))
-      || !lstrcmpi(exe, _T("firefox.exe"))
+    if (!lstrcmpi(exe, _T("chrome.exe"))) {
+      LPTSTR cmdline = GetCommandLine();
+
+      // Chrome starts several processes, the one loading the webdriver extension is
+      // the one we care about. Only inject the hook in that one.
+      if (_tcsstr(cmdline, _T("--load-extension"))) {
+        ok = true;
+      }
+    } else if (!lstrcmpi(exe, _T("firefox.exe"))
       || !lstrcmpi(exe, _T("iexplore.exe"))
       || (!lstrcmpi(exe, _T("WebKit2WebProcess.exe")))) {
       ok = true;
