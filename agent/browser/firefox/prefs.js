@@ -81,3 +81,8 @@ user_pref("browser.safebrowsing.downloads.enabled", false);
 user_pref("browser.safebrowsing.downloads.remote.enabled", false);
 user_pref("privacy.trackingprotection.pbmode.enabled", false);
 user_pref("services.sync.enabled", false);
+//Fix for OPS-39322
+user_pref("media.gmp-gmpopenh264.autoupdate", false);
+user_pref("media.gmp-eme-adobe.autoupdate", false);
+user_pref("media.gmp-manager.url", "");
+
