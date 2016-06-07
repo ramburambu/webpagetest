@@ -469,8 +469,7 @@ function AddImages($id, $testPath, &$result, &$output) {
 
     // retrieve custom screenshots labels from the output.json
     $labels = getCustomScreenshotsLabels($testPath, $output);
-    $labelIndex = 0;
-    $labelsCount = count($labels);
+    $labelIndex = count($labels) - 1;
 
     $pagesCount = count($result['log']['pages']);
     $includeVC = true;
@@ -526,9 +525,9 @@ function AddImages($id, $testPath, &$result, &$output) {
             $image['type'] = 'SCRIPT';
             $image['taken_ms'] = $time - $result['log']['pages'][$page]['_date'] * 1000;
 
-            if ($labelIndex < $labelsCount) {
+            if ($labelIndex >= 0) {
                 $image['label'] = $labels[$labelIndex];
-                ++$labelIndex;
+                --$labelIndex;
             } else {
                 $image['label'] = "";
             }
