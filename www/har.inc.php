@@ -102,7 +102,7 @@ function durationOfInterval($value) {
   return (int)$value;
 }
 
-function BuildHarPage($testPath, $cached, $run, $data) {
+function BuildHarPage($testPath, $cached, $run, $data, $step) {
   $cached_text = '';
   if ($cached)
     $cached_text = '_Cached';
@@ -125,6 +125,19 @@ function BuildHarPage($testPath, $cached, $run, $data) {
     if (!is_array($value))
       $pd["_$name"] = $value;
   }
+
+  // check if there is a pagemetrics.json for the current page
+  $pagemetrics_file = $testPath . "/" . ($step + 1) . "_pagemetrics.json.gz";
+  $metrics = array();
+  if (gz_is_file($pagemetrics_file)) {
+      $metrics = json_decode(gz_file_get_contents($pagemetrics_file), true);
+
+      foreach($metrics as $name => $value) {
+          if (!is_array($value))
+              $pd["_$name"] = $value;
+      }
+  }
+
   return $pd;
 }
 
@@ -376,7 +389,7 @@ function BuildHAR(&$pageData, $allRequests, $id, $testPath, $options) {
           $stepRequests = $requestsByStep[$i];
         }
         // add the page-level ldata to the result
-        $pd = BuildHarPage($testPath, $cached, $run, $stepData);
+        $pd = BuildHarPage($testPath, $cached, $run, $stepData, $i);
         $result['log']['pages'][] = $pd;
         // now add the object-level data to the result
         $secure = false;
