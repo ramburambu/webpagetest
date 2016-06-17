@@ -638,6 +638,25 @@ bool  RegexMatch(CStringA str, CStringA regex) {
   return matched;
 }
 
+bool  RegexSearch(CStringA str, CStringA regex) {
+  bool matched = false;
+
+  if (str.GetLength()) {
+    if (!regex.GetLength() ||
+        !regex.Compare("*") ||
+        !str.CompareNoCase(regex)) {
+      matched = true;
+    } else if (regex.GetLength()) {
+        std::tr1::regex match_regex(regex,
+                std::tr1::regex_constants::icase |
+                std::tr1::regex_constants::ECMAScript);
+        matched = std::tr1::regex_search((LPCSTR)str, match_regex);
+    }
+  }
+
+  return matched;
+}
+
 /*-----------------------------------------------------------------------------
 -----------------------------------------------------------------------------*/
 CStringA JSONEscapeA(CStringA src) {

@@ -110,6 +110,7 @@ void WptTest::Reset(void) {
   _trace = false;
   _netlog = false;
   _video = false;
+  _useImageToolsScreenshots = false;
   _spdy3 = false;
   _noscript = false;
   _clear_certs = false;
@@ -321,6 +322,7 @@ bool WptTest::Load(CString& test) {
     } else if (!reading_headers && !line.Trim().CompareNoCase(_T("[Script]"))) {
       // grab the rest of the response as the script
       _script = test.Mid(linePos).Trim();
+
       done = true;
     } 
 
@@ -338,8 +340,14 @@ bool WptTest::Load(CString& test) {
     _discard = 0;
   }
 
-  if (_script.GetLength())
+  if (_script.GetLength()) {
     _test_timeout *= _script_timeout_multiplier;
+
+    // check if we use imagetools for script capture. This information is passed as an in-script metadata
+    _useImageToolsScreenshots = RegexSearch((LPCSTR)CT2A(_script), CStringA(_T("useImageToolsScreenshots\\s*:\\s*true")));
+    WptTrace(loglevel::kFunction, _T("WptTest::Load() - use imagetools screenshots %d"), _useImageToolsScreenshots);
+  }
+
   WptTrace(loglevel::kFunction, _T("WptTest::Load() - Loaded test %s\n"), 
                                                                 (LPCTSTR)_id);
 

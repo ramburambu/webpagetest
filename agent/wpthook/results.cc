@@ -45,6 +45,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <Wincrypt.h>
 
 static const TCHAR * PAGE_DATA_FILE = _T("_IEWPG.txt");
+static const TCHAR * PAGE_TIMING_FILE = _T("_steps_timing.txt");
 static const TCHAR * REQUEST_DATA_FILE = _T("_IEWTR.txt");
 static const TCHAR * REQUEST_HEADERS_DATA_FILE = _T("_report.txt");
 static const TCHAR * PROGRESS_DATA_FILE = _T("_progress.csv");
@@ -475,6 +476,32 @@ void Results::SaveHistogram(CStringA& histogram, CString file) {
   Save the page-level data
 -----------------------------------------------------------------------------*/
 void Results::SavePageData(OptimizationChecks& checks){
+  // The browser agent sends metrics in milliseconds since UNIX EPOCH. We need to convert the start time to
+  // a UNIX timestamp in MS and account for the offset applied to the requests (_start)
+
+  // we need a UNIX EPOCH of start time in ms. So,
+  // 1. lets convert the FILETIME to a 64 LONGLONG
+  LONGLONG ll_start = (LONGLONG)_test_state._start_time.dwLowDateTime + ((LONGLONG)(_test_state._start_time.dwHighDateTime) << 32LL);
+  // 2. FILE TIME is given in 100ns, we need to convert to ms
+  ll_start = ll_start / 10000LL;
+  // 3. Finally, we need to reach Jan 1, 1970 since FILE TIME is based on Jan 1, 1601
+  ll_start -= 11644473600000LL;
+  // 4. Now we have to adjust the start time by adding interval between _step_start and _start
+  ll_start += (LONGLONG)ElapsedMs(_test_state._step_start, _test_state._start);
+
+  HANDLE page_timing_file = CreateFile(_file_base + PAGE_TIMING_FILE, GENERIC_WRITE, 0,
+                            NULL, OPEN_ALWAYS, 0, 0);
+  if (page_timing_file != INVALID_HANDLE_VALUE) {
+    SetFilePointer(page_timing_file, 0, 0, FILE_END);
+    CStringA result;
+    result.Format("%lld\r\n", ll_start);
+
+    DWORD written;
+    WriteFile(page_timing_file, (LPCSTR)result, result.GetLength(), &written, 0);
+    CloseHandle(page_timing_file);
+
+  }
+
   HANDLE file = CreateFile(_file_base + PAGE_DATA_FILE, GENERIC_WRITE, 0, 
                             NULL, OPEN_ALWAYS, 0, 0);
   if (file != INVALID_HANDLE_VALUE) {
@@ -482,19 +509,6 @@ void Results::SavePageData(OptimizationChecks& checks){
 
     CStringA result;
     CStringA buff;
-
-    // The browser agent sends metrics in milliseconds since UNIX EPOCH. We need to convert the start time to
-    // a UNIX timestamp in MS and account for the offset applied to the requests (_start)
-
-    // we need a UNIX EPOCH of start time in ms. So,
-    // 1. lets convert the FILETIME to a 64 LONGLONG
-    LONGLONG ll_start = (LONGLONG)_test_state._start_time.dwLowDateTime + ((LONGLONG)(_test_state._start_time.dwHighDateTime) << 32LL);
-    // 2. FILE TIME is given in 100ns, we need to convert to ms
-    ll_start = ll_start / 10000LL;
-    // 3. Finally, we need to reach Jan 1, 1970 since FILE TIME is based on Jan 1, 1601
-    ll_start -= 11644473600000LL;
-    // 4. Now we have to adjust the start time by adding interval between _step_start and _start
-    ll_start += (LONGLONG)ElapsedMs(_test_state._step_start, _test_state._start);
 
     LONGLONG ms_dom_content_loaded_event_start = max(0, _test_state._dom_content_loaded_event_start - ll_start);
     LONGLONG ms_dom_content_loaded_event_end = max(0, _test_state._dom_content_loaded_event_end - ll_start);

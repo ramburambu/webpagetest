@@ -241,9 +241,19 @@ bool WebDriver::SpawnWebDriverClient() {
   // Add the test id
   options.Add(_T("--id"));
   options.Add(_test._id);
+
+  if (_test._useImageToolsScreenshots) {
+    // set imagetools options
+    options.Add(_T("--imagetools"));
+    options.Add(_settings._imagetools_command);
+    options.Add(_T("--screenshots-path"));
+    options.Add(_test._progress_dir);
+  }
+
   // Add the browser we are about to launch.
   options.Add(_T("--browser"));
   options.Add(_T("\"") + browser + _T("\""));
+
   if (!_test._script.GetLength()) {
     // Script is empty. Test the said url.
     options.Add(_T("--test-url"));
@@ -271,6 +281,8 @@ bool WebDriver::SpawnWebDriverClient() {
   // pass the test directory to the client to record stdout/stderr and other result files
   options.Add(_T("--outputDir"));
   options.Add(_T("\"") + _test._directory + _T("\""));
+
+
   // pass the test timeout to the client
   if (_test._test_timeout > 0) {
     CString timeout;
@@ -279,6 +291,7 @@ bool WebDriver::SpawnWebDriverClient() {
     options.Add(_T("--timeout"));
     options.Add(timeout);
   }
+
   ConstructCmdLine(_settings._webdriver_client_command, options, CString(""), cmdLine);
 
   ZeroMemory(&si, sizeof(STARTUPINFO));

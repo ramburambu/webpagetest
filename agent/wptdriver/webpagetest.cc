@@ -296,8 +296,6 @@ bool WebPagetest::UploadIncrementalResults(WptTestDriver& test) {
       ret = UploadData(test, false);
       SetCPUUtilization(0);
     }
-  } else {
-    DeleteIncrementalResults(test);
   }
 
   return ret;
@@ -366,8 +364,6 @@ bool WebPagetest::UploadImages(WptTestDriver& test,
     CString file = image_files.GetNext(pos);
     if (!test._discard_test)
       ret = UploadFile(url, false, test, file);
-    if (ret)
-      DeleteFile(file);
   }
   return ret;
 }
@@ -386,8 +382,6 @@ bool WebPagetest::UploadData(WptTestDriver& test, bool done) {
   if (ret || done) {
     CString url = _settings._server + _T("work/workdone.php");
     ret = UploadFile(url, done, test, file);
-    if (ret)
-      DeleteFile(file);
   }
 
   return ret;
@@ -680,9 +674,6 @@ bool WebPagetest::UploadFile(CString url, bool done, WptTestDriver& test,
   if (file_handle != INVALID_HANDLE_VALUE)
     CloseHandle( file_handle );
 
-  if (ret)
-    DeleteFile(file);
-
   AtlTrace(_T("[wptdriver] - Upload %s"), ret ? _T("SUCCEEDED") : _T("FAILED"));
 
   return ret;
@@ -903,7 +894,6 @@ bool WebPagetest::CompressResults(CString directory, CString zip_file) {
               
               CloseHandle(new_file);
             }
-            DeleteFile(file_path);
           }
         }
       } while (FindNextFile(find_handle, &fd));

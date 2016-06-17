@@ -159,6 +159,7 @@ public:
   int     _timelineStackDepth;
   bool    _trace;
   bool    _netlog;
+  bool    _useImageToolsScreenshots;
   bool    _video;
   bool    _spdy3;
   bool    _noscript;
