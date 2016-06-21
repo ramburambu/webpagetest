@@ -127,6 +127,7 @@ bool WebPagetest::GetTest(WptTestDriver& test) {
       }
 
       if (RebootWatchDog()){
+        CaptureDesktop();
         WptTrace(loglevel::kError, _T("[wptdriver] - Rebooting agent!"));
         Reboot();
       } else {
@@ -206,6 +207,63 @@ bool WebPagetest::GetTest(WptTestDriver& test) {
   }
 
   return ret;
+}
+
+/*-----------------------------------------------------------------------------
+Take a full desktop screenshot and dump it to the disk
+-----------------------------------------------------------------------------*/
+void WebPagetest::CaptureDesktop() {
+  HDC hdc = GetDC(NULL); // get the desktop device context
+  HDC hDest = CreateCompatibleDC(hdc); // create a device context to use yourself
+
+  // create a bitmap
+  HBITMAP hbDesktop = CreateCompatibleBitmap(hdc, _screenWidth, _screenHeight);
+
+  if (hbDesktop) {
+    // use the previously created device context with the bitmap
+    SelectObject(hDest, hbDesktop);
+
+    // copy from the desktop device context to the bitmap device context
+    // call this once per 'frame'
+    BitBlt(hDest, 0, 0, _screenWidth, _screenHeight, hdc, 0, 0, SRCCOPY);
+
+    size_t headerSize = sizeof(BITMAPINFOHEADER) + 3 * sizeof(RGBQUAD);
+    BYTE* pHeader = new BYTE[headerSize];
+    LPBITMAPINFO pbmi = (LPBITMAPINFO)pHeader;
+    memset(pHeader, 0, headerSize);
+    pbmi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    pbmi->bmiHeader.biBitCount = 0;
+    if (!GetDIBits(hDest, hbDesktop, 0, 0, NULL, pbmi, DIB_RGB_COLORS))
+      return;
+
+    BITMAPFILEHEADER bmf;
+    if (pbmi->bmiHeader.biSizeImage <= 0)
+      pbmi->bmiHeader.biSizeImage = pbmi->bmiHeader.biWidth*abs(pbmi->bmiHeader.biHeight)*(pbmi->bmiHeader.biBitCount + 7) / 8;
+    BYTE* pData = new BYTE[pbmi->bmiHeader.biSizeImage];
+    bmf.bfType = 0x4D42; bmf.bfReserved1 = bmf.bfReserved2 = 0;
+    bmf.bfSize = sizeof(BITMAPFILEHEADER) + headerSize + pbmi->bmiHeader.biSizeImage;
+    bmf.bfOffBits = sizeof(BITMAPFILEHEADER) + headerSize;
+    if (!GetDIBits(hDest, hbDesktop, 0, abs(pbmi->bmiHeader.biHeight), pData, pbmi, DIB_RGB_COLORS))
+    {
+      delete pData;
+      return;
+    }
+    FILE* hFile = fopen("pre-reboot.bmp", "wb");
+    fwrite(&bmf, sizeof(BITMAPFILEHEADER), 1, hFile);
+    fwrite(pbmi, headerSize, 1, hFile);
+    fwrite(pData, pbmi->bmiHeader.biSizeImage, 1, hFile);
+    fclose(hFile);
+
+    DeleteObject(hbDesktop);
+
+    delete[] pData;
+  }
+
+  // after the recording is done, release the desktop context you got..
+  ReleaseDC(NULL, hdc);
+
+  // ..and delete the context you created
+  DeleteDC(hDest);
 }
 
 /*-----------------------------------------------------------------------------

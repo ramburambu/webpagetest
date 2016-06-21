@@ -57,6 +57,7 @@ private:
   int           _screenHeight;
   int           _lockScreen;
 
+  void CaptureDesktop();
   void LoadClientCertificateFromStore(HINTERNET request);
   void SetLoginCredentials(HINTERNET request);
   bool HttpGet(CString url, WptTestDriver& test, CString& test_string, 
