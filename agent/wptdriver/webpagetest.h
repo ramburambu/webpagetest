@@ -86,4 +86,5 @@ private:
   void ResetRebootWatchDog();
   void SaveRebootWatchDog(short);
   short LoadRebootWatchDog();
+  void SaveJpeg(HBITMAP hBitmap);
 };

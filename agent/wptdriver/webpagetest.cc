@@ -34,6 +34,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "zlib/contrib/minizip/zip.h"
 #include "zlib/contrib/minizip/unzip.h"
 #include "util.h"
+#include <Gdiplus.h>
+using namespace Gdiplus;
+#include <Gdiplusimaging.h>
+#include <atlimage.h>
+#include <iostream>
+#include <fstream>
+#include <vector>
 
 static const TCHAR * NO_FILE = _T("");
 static const short MAX_REBOOT = 3;
@@ -236,27 +243,8 @@ void WebPagetest::CaptureDesktop() {
     if (!GetDIBits(hDest, hbDesktop, 0, 0, NULL, pbmi, DIB_RGB_COLORS))
       return;
 
-    BITMAPFILEHEADER bmf;
-    if (pbmi->bmiHeader.biSizeImage <= 0)
-      pbmi->bmiHeader.biSizeImage = pbmi->bmiHeader.biWidth*abs(pbmi->bmiHeader.biHeight)*(pbmi->bmiHeader.biBitCount + 7) / 8;
-    BYTE* pData = new BYTE[pbmi->bmiHeader.biSizeImage];
-    bmf.bfType = 0x4D42; bmf.bfReserved1 = bmf.bfReserved2 = 0;
-    bmf.bfSize = sizeof(BITMAPFILEHEADER) + headerSize + pbmi->bmiHeader.biSizeImage;
-    bmf.bfOffBits = sizeof(BITMAPFILEHEADER) + headerSize;
-    if (!GetDIBits(hDest, hbDesktop, 0, abs(pbmi->bmiHeader.biHeight), pData, pbmi, DIB_RGB_COLORS))
-    {
-      delete pData;
-      return;
-    }
-    FILE* hFile = fopen("pre-reboot.bmp", "wb");
-    fwrite(&bmf, sizeof(BITMAPFILEHEADER), 1, hFile);
-    fwrite(pbmi, headerSize, 1, hFile);
-    fwrite(pData, pbmi->bmiHeader.biSizeImage, 1, hFile);
-    fclose(hFile);
-
+    SaveJpeg(hbDesktop);
     DeleteObject(hbDesktop);
-
-    delete[] pData;
   }
 
   // after the recording is done, release the desktop context you got..
@@ -264,6 +252,31 @@ void WebPagetest::CaptureDesktop() {
 
   // ..and delete the context you created
   DeleteDC(hDest);
+}
+
+void WebPagetest::SaveJpeg(HBITMAP hBitmap)
+{
+  std::vector<BYTE> buf;
+  IStream *stream = NULL;
+  HRESULT hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+  CImage image;
+  ULARGE_INTEGER liSize;
+
+  // screenshot to jpg and save to stream
+  image.Attach(hBitmap);
+  image.Save(stream, ImageFormatJPEG);
+  IStream_Size(stream, &liSize);
+  DWORD len = liSize.LowPart;
+  IStream_Reset(stream);
+  buf.resize(len);
+  IStream_Read(stream, &buf[0], len);
+  stream->Release();
+
+  CString filename;
+  filename.Format(_T("pre-reboot_%d.jpg"), GetTickCount());
+  FILE* hFile = fopen(CStringA(filename), "wb");
+  fwrite(reinterpret_cast<const char*>(&buf[0]), buf.size()*sizeof(BYTE), 1, hFile);
+  fclose(hFile);
 }
 
 /*-----------------------------------------------------------------------------
