@@ -34,6 +34,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "zlib/contrib/minizip/zip.h"
 #include "zlib/contrib/minizip/unzip.h"
 #include "util.h"
+#include <Gdiplus.h>
+using namespace Gdiplus;
+#include <Gdiplusimaging.h>
+#include <atlimage.h>
+#include <iostream>
+#include <fstream>
+#include <vector>
 
 static const TCHAR * NO_FILE = _T("");
 static const short MAX_REBOOT = 3;
@@ -127,6 +134,7 @@ bool WebPagetest::GetTest(WptTestDriver& test) {
       }
 
       if (RebootWatchDog()){
+        CaptureDesktop();
         WptTrace(loglevel::kError, _T("[wptdriver] - Rebooting agent!"));
         Reboot();
       } else {
@@ -206,6 +214,69 @@ bool WebPagetest::GetTest(WptTestDriver& test) {
   }
 
   return ret;
+}
+
+/*-----------------------------------------------------------------------------
+Take a full desktop screenshot and dump it to the disk
+-----------------------------------------------------------------------------*/
+void WebPagetest::CaptureDesktop() {
+  HDC hdc = GetDC(NULL); // get the desktop device context
+  HDC hDest = CreateCompatibleDC(hdc); // create a device context to use yourself
+
+  // create a bitmap
+  HBITMAP hbDesktop = CreateCompatibleBitmap(hdc, _screenWidth, _screenHeight);
+
+  if (hbDesktop) {
+    // use the previously created device context with the bitmap
+    SelectObject(hDest, hbDesktop);
+
+    // copy from the desktop device context to the bitmap device context
+    // call this once per 'frame'
+    BitBlt(hDest, 0, 0, _screenWidth, _screenHeight, hdc, 0, 0, SRCCOPY);
+
+    size_t headerSize = sizeof(BITMAPINFOHEADER) + 3 * sizeof(RGBQUAD);
+    BYTE* pHeader = new BYTE[headerSize];
+    LPBITMAPINFO pbmi = (LPBITMAPINFO)pHeader;
+    memset(pHeader, 0, headerSize);
+    pbmi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    pbmi->bmiHeader.biBitCount = 0;
+    if (!GetDIBits(hDest, hbDesktop, 0, 0, NULL, pbmi, DIB_RGB_COLORS))
+      return;
+
+    SaveJpeg(hbDesktop);
+    DeleteObject(hbDesktop);
+  }
+
+  // after the recording is done, release the desktop context you got..
+  ReleaseDC(NULL, hdc);
+
+  // ..and delete the context you created
+  DeleteDC(hDest);
+}
+
+void WebPagetest::SaveJpeg(HBITMAP hBitmap)
+{
+  std::vector<BYTE> buf;
+  IStream *stream = NULL;
+  HRESULT hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+  CImage image;
+  ULARGE_INTEGER liSize;
+
+  // screenshot to jpg and save to stream
+  image.Attach(hBitmap);
+  image.Save(stream, ImageFormatJPEG);
+  IStream_Size(stream, &liSize);
+  DWORD len = liSize.LowPart;
+  IStream_Reset(stream);
+  buf.resize(len);
+  IStream_Read(stream, &buf[0], len);
+  stream->Release();
+
+  CString filename;
+  filename.Format(_T("pre-reboot_%d.jpg"), GetTickCount());
+  FILE* hFile = fopen(CStringA(filename), "wb");
+  fwrite(reinterpret_cast<const char*>(&buf[0]), buf.size()*sizeof(BYTE), 1, hFile);
+  fclose(hFile);
 }
 
 /*-----------------------------------------------------------------------------
