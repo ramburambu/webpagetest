@@ -78,13 +78,27 @@ if (ValidateTestId($id)) {
                   $fileName = 'ms_' . $fileBase;
                 }
               }
+
               MoveUploadedFile($_FILES['file']['tmp_name'], "$path/$fileName");
+
+              if (strpos($fileName, 'result') !== false) {
+                  CopyUploadedFile("$path/$fileName", "$path/1_screen.jpg");
+              }
             }
           }
         }
       }
     }
   }
+}
+
+/**
+* Copy the file upload and set the appropriate permissions
+*/
+function CopyUploadedFile($src, $dest) {
+  copy($src, $dest);
+  touch($dest);
+  @chmod($dest, 0666);
 }
 
 /**
