@@ -570,7 +570,9 @@ function pageFromTimestamp(&$result, $time) {
         }
     }
     
-    return -1;
+    // if we reach this point it means the event happened before the first page.
+    // The first page is therefore the right bucket.
+    return 0;
 }
 
 function getCustomScreenshotsLabels($testPath, &$output) {
