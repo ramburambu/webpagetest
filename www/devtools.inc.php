@@ -786,7 +786,7 @@ function ParseDevToolsEvents(&$json, &$events, $filter, $removeParams, &$startOf
     $iFrames = Array(); // list of iFrame frameId
     $thisStepRequestId = null;
     $thisStepPushBackRequestId = null;
-    $thisStepResponseReceived = null;
+    $thisStepResponseReceived = false;
     foreach ($messages as $entry) {
         $message = $entry['message'];
         if (isset($message['params']['timestamp'])) {
