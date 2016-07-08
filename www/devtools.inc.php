@@ -785,6 +785,8 @@ function ParseDevToolsEvents(&$json, &$events, $filter, $removeParams, &$startOf
     $previousStepIndex = 0;
     $iFrames = Array(); // list of iFrame frameId
     $thisStepRequestId = null;
+    $thisStepPushBackRequestId = null;
+    $thisStepResponseReceived = false;
     foreach ($messages as $entry) {
         $message = $entry['message'];
         if (isset($message['params']['timestamp'])) {
@@ -831,19 +833,43 @@ function ParseDevToolsEvents(&$json, &$events, $filter, $removeParams, &$startOf
                 $previousStepIndex = $currentStepIndex;
                 $currentStepIndex++;
                 $thisStepRequestId = null;
+                $thisStepPushBackRequestId = null;
+                $thisStepResponseReceived = false;
                 continue;
             }
             if ($thisStepRequestId == null && isset($message['method']) &&
                 $message['method'] == "Network.requestWillBeSent" &&
                 isset($message['params']['requestId'])) {
                 $thisStepRequestId = $message['params']['requestId'];
+                $thisStepPushBackRequestId = $thisStepRequestId;
                 debugDevTools("* RequestId for Step " . ($currentStepIndex + 1) . ": " . $thisStepRequestId);
             }
+
+            // To avoid bleeding of resources from one step to the next, all requests between the first
+            // request and its response should be pushed back to the previous step (blackout period).
+            // The rational being, if the index.html is currently requested, none of the other request can possibly
+            // be part of this new step since it's not even loaded.
+            if (!$thisStepResponseReceived &&
+                    $thisStepRequestId != null &&
+                    isset($message['method']) &&
+                    $message['method'] == "Network.responseReceived" &&
+                    isset($message['params']['requestId']) &&
+                    $message['params']['requestId'] == $thisStepRequestId) {
+                $thisStepResponseReceived = true;
+            }
+
             if (DevToolsMatchEvent($filter, $message)) {
                 $stepIndexToInsertEvent = $currentStepIndex;
-                if ($thisStepRequestId != null && isset($message['params']['requestId']) &&
-                    compareRequestId($message['params']['requestId'], $thisStepRequestId)) {
+                if (($thisStepRequestId != null && isset($message['params']['requestId']) &&
+                    $message['params']['requestId'] != $thisStepRequestId) &&
+                    /* request out of order */
+                    (compareRequestId($message['params']['requestId'], $thisStepPushBackRequestId) ||
+                    /* blackout period */ !$thisStepResponseReceived)) {
                     $stepIndexToInsertEvent = $previousStepIndex;
+
+                    // use push over requestId to ensure that not only the request get pushed back to the previous step,
+                    // but also the response
+                    $thisStepPushBackRequestId = $message['params']['requestId'];
                 }
                 if ($removeParams && array_key_exists('params', $message)) {
                     $event = $message['params'];
