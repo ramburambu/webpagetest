@@ -420,11 +420,15 @@ void TestServer::SendResponse(struct mg_connection *conn,
   }
 
   // start with the HTTP Header
-  CStringA response = "HTTP/1.1 200 OK\r\n"
+  CStringA responseTemplate = "HTTP/1.1 %d %s\r\n"
     "Server: wptdriver\r\n"
     "Cache: no-cache\r\n"
     "Pragma: no-cache\r\n"
     "Content-Type: application/json\r\n";
+  
+  CStringA response;
+
+  response.Format(responseTemplate, response_code, response_code_string);
 
   if (!callback.IsEmpty())
     response += callback + "(";
