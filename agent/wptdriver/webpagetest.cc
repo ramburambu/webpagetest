@@ -44,7 +44,7 @@ using namespace Gdiplus;
 
 static const TCHAR * NO_FILE = _T("");
 static const short MAX_REBOOT = 3;
-static const short MAX_LOCKSCREEN_WAIT = 60 * 10; // reboot after 10min of lock screen
+static const short MAX_LOCKSCREEN_WAIT = 60 * 5; // reboot after 5min of lock screen
 
 /*-----------------------------------------------------------------------------
 -----------------------------------------------------------------------------*/
