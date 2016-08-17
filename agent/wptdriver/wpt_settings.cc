@@ -58,6 +58,7 @@ static const TCHAR * CHROME_REQUIRED_OPTIONS[] = {
   _T("disable-component-update"),
   _T("disable-background-downloads"),
   _T("ignore-certificate-errors"),
+  _T("disable-popup-blocking"),
   _T("test-type"),
   _T("allow-running-insecure-content"),
   _T("silent-debugger-extension-api"),
