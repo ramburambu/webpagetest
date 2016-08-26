@@ -373,7 +373,7 @@ bool WptDriverCore::RunImageHash(WptTestDriver& test) {
   _settings._imagetools_command.Replace(_T("%RESULTDIR%"), test._directory);
 
   CString cmd;
-  if (test._useImageToolsScreenshots) {
+  if (test._useHawk) {
     cmd.Format(_T("%s imagehash -s %s -d %s -j -x -q %0.2f"), _settings._imagetools_command, test._directory, test._directory, (float)test._image_quality / 100.0f);
   } else {
     cmd.Format(_T("%s imagehash -s %s -d %s -j -q %0.2f"), _settings._imagetools_command, test._screenshots_dir, test._directory, (float)test._image_quality / 100.0f);
@@ -413,7 +413,7 @@ bool WptDriverCore::RunVisuallyComplete(WptTestDriver& test) {
 
   CString cmd;
 
-  if (test._useImageToolsScreenshots) {
+  if (test._useHawk) {
     cmd.Format(_T("%s visuallycomplete -l -s %s -d %s --steps-timing %s"), _settings._imagetools_command, test._progress_dir, test._directory, test._file_base + _T("_steps_timing.txt"));
   } else {
     cmd.Format(_T("%s visuallycomplete -s %s -d %s"), _settings._imagetools_command, test._progress_dir, test._screenshots_dir);

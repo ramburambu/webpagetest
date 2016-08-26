@@ -306,7 +306,7 @@ void TestState::OnLoad() {
     QueryPerformanceCounter(&_on_load);
     GetCPUTime(_doc_cpu_time, _doc_total_time);
     ActivityDetected();
-    if (!_test._useImageToolsScreenshots) {
+    if (!_test._useHawk) {
       _screen_capture.Capture(_frame_window, CapturedImage::DOCUMENT_COMPLETE);
     }
     _current_document = 0;
@@ -436,7 +436,7 @@ BOOL CALLBACK MakeTopmost(HWND hwnd, LPARAM lParam) {
 Capture session result image
 -----------------------------------------------------------------------------*/
 void TestState::GrabResultScreenshot() {
-  if (!_test._useImageToolsScreenshots) {
+  if (!_test._useHawk) {
     _screen_capture.Capture(_frame_window, CapturedImage::RESULT);
   }
 }
@@ -497,7 +497,7 @@ void TestState::UpdateBrowserWindow() {
     Grab a video frame if it is appropriate
 -----------------------------------------------------------------------------*/
 void TestState::GrabVideoFrame(bool force) {
-  if (!_test._useImageToolsScreenshots && _active && _frame_window && (force || received_data_)) {
+  if (!_test._useHawk && _active && _frame_window && (force || received_data_)) {
     // use a falloff on the resolution with which we capture video
     bool grab_video = false;
     LARGE_INTEGER now;
@@ -935,7 +935,7 @@ void TestState::ResizeBrowserForResponsiveTest() {
   browser-specific extensions
 -----------------------------------------------------------------------------*/
 void TestState::CheckResponsive() {
-  if (!_test._useImageToolsScreenshots && _frame_window) {
+  if (!_test._useHawk && _frame_window) {
     _screen_capture.Capture(_frame_window, CapturedImage::RESPONSIVE_CHECK,
                             false);
   }

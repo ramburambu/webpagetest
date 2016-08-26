@@ -499,7 +499,7 @@ void Results::SavePageData(OptimizationChecks& checks){
     DWORD written;
     WriteFile(page_timing_file, (LPCSTR)result, result.GetLength(), &written, 0);
     CloseHandle(page_timing_file);
-
+    FlushFileBuffers(page_timing_file);
   }
 
   HANDLE file = CreateFile(_file_base + PAGE_DATA_FILE, GENERIC_WRITE, 0, 
