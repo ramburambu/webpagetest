@@ -242,10 +242,10 @@ bool WebDriver::SpawnWebDriverClient() {
   options.Add(_T("--id"));
   options.Add(_test._id);
 
-  if (_test._useImageToolsScreenshots) {
-    // set imagetools options
-    options.Add(_T("--imagetools"));
-    options.Add(_settings._imagetools_command);
+  if (_test._useHawk) {
+    // set hawk options
+    options.Add(_T("--hawk-path"));
+    options.Add(_settings._hawk_command);
     options.Add(_T("--screenshots-path"));
     options.Add(_test._progress_dir);
   }
