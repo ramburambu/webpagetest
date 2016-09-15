@@ -100,6 +100,7 @@ private:
   void SaveRequests(bool merge);
   void SaveRequest(HANDLE file, HANDLE headers, Request * request, int index);
   void SaveImages(void);
+  void SaveResultImage(void);
   void SaveVideo(void);
   void SaveProgressData(void);
   void SaveStatusMessages(void);

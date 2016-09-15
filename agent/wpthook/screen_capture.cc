@@ -102,11 +102,13 @@ bool ScreenCapture::GetImage(CapturedImage::TYPE type, CxImage& image) {
   bool ret = false;
   image.Destroy();
   EnterCriticalSection(&cs);
-  POSITION pos = _captured_images.GetHeadPosition();
+  POSITION pos = _captured_images.GetTailPosition();
   while (pos) {
-    CapturedImage& captured_image = _captured_images.GetNext(pos);
-    if (captured_image._type == type)
+    CapturedImage& captured_image = _captured_images.GetPrev(pos);
+    if (captured_image._type == type) {
       ret = captured_image.Get(image);
+      break;
+    }
   }
   LeaveCriticalSection(&cs);
 
