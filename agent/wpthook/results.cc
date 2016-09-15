@@ -137,7 +137,9 @@ void Results::Save(bool merge) {
   DWORD priority = GetThreadPriority(GetCurrentThread());
   SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
   WptTrace(loglevel::kFunction, _T("[wpthook] - Results::Save()\n"));
+
   if (!_saved) {
+    SaveResultImage();
     ProcessRequests(merge);
     if (_test._log_data) {
       if (!merge) {
@@ -230,7 +232,7 @@ void Results::SaveStatusMessages(void) {
 
 /*-----------------------------------------------------------------------------
 -----------------------------------------------------------------------------*/
-void Results::SaveImages(void) {
+void Results::SaveResultImage(void) {
   // save the event-based images
   CxImage image; 
 
@@ -240,7 +242,9 @@ void Results::SaveImages(void) {
 
     SaveImage(image, _test._screenshots_dir + IMAGE_RESULT_PNG, _test._image_quality, false, _test._full_size_video);
   }
+}
 
+void Results::SaveImages(void) {
   SaveVideo();
 }
 
