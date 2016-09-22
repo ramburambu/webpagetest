@@ -161,7 +161,12 @@ bool WebPagetest::GetTest(WptTestDriver& test) {
   _lockScreen = 0;
 
 
-  DeleteDirectory(test._directory, false);
+  if (_settings._dontCleanupResults) {
+    WptTrace(loglevel::kError, _T("[wptdriver] - Results directory not deleted and left behind"));
+  }
+  else {
+    DeleteDirectory(test._directory, false);
+  }
 
 
   // build the url for the request

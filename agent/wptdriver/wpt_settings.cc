@@ -84,7 +84,8 @@ WptSettings::WptSettings(WptStatus &status):
   ,_software_update(status)
   ,_requireValidCertificate(true)
   ,_webdriver_supported(false)
-  ,_reboot_on_lock_screen(false) {
+  ,_reboot_on_lock_screen(false)
+  ,_dontCleanupResults(true) {
 }
 
 /*-----------------------------------------------------------------------------
@@ -221,6 +222,14 @@ bool WptSettings::Load(void) {
     _T("WebPageTest"), _T("Hawk"), _T(""), buff, _countof(buff), iniFile)) {
     _hawk_command = buff;
     _hawk_command.Trim(_T("\""));
+  }
+  
+  if (GetPrivateProfileString(
+    _T("WebPageTest"), _T("DontCleanupResults"), _T(""), buff, _countof(buff), iniFile)) {
+    _dontCleanupResults = true;
+  }
+  else {
+    _dontCleanupResults = false;
   }
 
   if (_webdriver_supported) {
