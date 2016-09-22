@@ -254,6 +254,10 @@ bool WebDriver::SpawnWebDriverClient() {
   options.Add(_T("--browser"));
   options.Add(_T("\"") + browser + _T("\""));
 
+  if (_test._noLockstep) {
+    options.Add(_T("--no-lockstep"));
+  }
+
   if (!_test._script.GetLength()) {
     // Script is empty. Test the said url.
     options.Add(_T("--test-url"));

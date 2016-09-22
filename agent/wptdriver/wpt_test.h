@@ -161,6 +161,7 @@ public:
   bool    _netlog;
   bool    _useHawk;
   bool    _noScreenshots;
+  bool    _noLockstep;
   bool    _video;
   bool    _spdy3;
   bool    _noscript;

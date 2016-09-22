@@ -112,6 +112,7 @@ void WptTest::Reset(void) {
   _video = false;
   _useHawk = false;
   _noScreenshots = false;
+  _noLockstep = false;
   _spdy3 = false;
   _noscript = false;
   _clear_certs = false;
@@ -351,6 +352,7 @@ bool WptTest::Load(CString& test) {
       _useHawk = RegexSearch((LPCSTR)CT2A(_script), CStringA(_T("UseHawk\\s*:\\s*true")));
       WptTrace(loglevel::kFunction, _T("WptTest::Load() - use hawk screenshots %d"), _useHawk);
     }
+    _noLockstep = RegexSearch((LPCSTR)CT2A(_script), CStringA(_T("NoLockstep\\s*:\\s*true")));
   }
 
   WptTrace(loglevel::kFunction, _T("WptTest::Load() - Loaded test %s\n"), 
