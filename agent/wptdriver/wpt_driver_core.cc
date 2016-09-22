@@ -338,8 +338,10 @@ bool WptDriverCore::BrowserTest(WptTestDriver& test, WebBrowser &browser) {
   }
 
   // process images
-  RunVisuallyComplete(test);
-  RunImageHash(test);
+  if (!test._noScreenshots) {
+    RunVisuallyComplete(test);
+    RunImageHash(test);
+  }
 
   WptTrace(loglevel::kFunction, 
             _T("[wptdriver] WptDriverCore::BrowserTest done\n"));

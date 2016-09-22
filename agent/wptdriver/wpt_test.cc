@@ -111,6 +111,7 @@ void WptTest::Reset(void) {
   _netlog = false;
   _video = false;
   _useHawk = false;
+  _noScreenshots = false;
   _spdy3 = false;
   _noscript = false;
   _clear_certs = false;
@@ -343,9 +344,13 @@ bool WptTest::Load(CString& test) {
   if (_script.GetLength()) {
     _test_timeout *= _script_timeout_multiplier;
 
-    // check if we use hawk for script capture. This information is passed as an in-script metadata
-    _useHawk = RegexSearch((LPCSTR)CT2A(_script), CStringA(_T("UseHawk\\s*:\\s*true")));
-    WptTrace(loglevel::kFunction, _T("WptTest::Load() - use hawk screenshots %d"), _useHawk);
+    _noScreenshots = RegexSearch((LPCSTR)CT2A(_script), CStringA(_T("NoScreenshots\\s*:\\s*true")));
+    WptTrace(loglevel::kFunction, _T("WptTest::Load() - override to turn off all screenshots %d"), _noScreenshots);
+    if (!_noScreenshots) {
+      // check if we use hawk for script capture. This information is passed as an in-script metadata
+      _useHawk = RegexSearch((LPCSTR)CT2A(_script), CStringA(_T("UseHawk\\s*:\\s*true")));
+      WptTrace(loglevel::kFunction, _T("WptTest::Load() - use hawk screenshots %d"), _useHawk);
+    }
   }
 
   WptTrace(loglevel::kFunction, _T("WptTest::Load() - Loaded test %s\n"), 

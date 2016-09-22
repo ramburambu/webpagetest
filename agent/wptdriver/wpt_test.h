@@ -160,6 +160,7 @@ public:
   bool    _trace;
   bool    _netlog;
   bool    _useHawk;
+  bool    _noScreenshots;
   bool    _video;
   bool    _spdy3;
   bool    _noscript;
